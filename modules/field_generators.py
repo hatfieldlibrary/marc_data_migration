@@ -1,39 +1,46 @@
 from pymarc import Field
 
 
-class TitleGenerator:
+class DataFieldGenerator:
 
     ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
-    def getTitleField(self, oclcResponse):
+    def get_data_field(self, tag, attrib, field):
         """
-        Extracts title fields from the OCLC XML
-        response and creates a new pymarc Field
-        from the data.
+        Extracts data field from the OCLC XML
+        response and creates a new pymarc Field.
 
-        :param: The OCLC XML respone
-        :return: New 245 Field
+        :param: tag the field element
+        :param: attrib the field attributes
+        :param: field the field tag
+        :return: new data field
         """
-        tag = oclcResponse.find('.//*[@tag="245"]')
-        fielda = tag.find('.//subfield[@code="a"]', self.ns)
-        fieldb = tag.find('.//subfield[@code="b"]', self.ns)
-        fieldc = tag.find('./subfield[@code="c"]', self.ns)
-        firstIndicator = tag.attrib['ind1']
-        secondIndicaor = tag.attrib['ind2']
-        subfields = []
-        if fielda.text:
-            subfields.append('a')
-            subfields.append(fielda.text)
-        if fieldb and fieldb.text:
-            subfields.append('b')
-            subfields.append(fieldb.text)
-        if fieldc and fieldc.text:
-            subfields.append('c')
-            subfields.append(fieldc.text)
-        indicators = [firstIndicator, secondIndicaor]
-
+        new_fields = []
+        first_indicator = attrib['ind1']
+        second_indicator = attrib['ind2']
+        subfields = tag.find('.//subfield', self.ns)
+        for subfield_id in subfields.attrib['code']:
+            new_fields.append(subfield_id)
+            subfield = tag.find('.//subfield[@code="' + subfield_id + '"]', self.ns)
+            new_fields.append(subfield.text)
+        indicators = [first_indicator, second_indicator]
         return Field(
-            tag='245',
+            tag=field,
             indicators=indicators,
-            subfields=subfields
+            subfields=new_fields
         )
+
+
+class ControlFieldGenerator:
+
+    ns = {'': 'http://www.loc.gov/MARC21/slim'}
+
+    def get_control_field(self, field, oclcResponse):
+
+        tag = oclcResponse.find('.//*[@tag="' + field + '"]')
+        if tag is not None:
+            return Field(
+                tag=field,
+                data=tag.text
+            )
+
