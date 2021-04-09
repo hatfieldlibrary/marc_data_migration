@@ -3,6 +3,7 @@ from pymarc import MARCReader, Field
 from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
 from modules.oclc_connector import OclcConnector
 import modules.utils as utils
+import re
 
 
 class RecordsModifier:
@@ -10,9 +11,30 @@ class RecordsModifier:
     connector = OclcConnector()
 
     @staticmethod
-    def __data_field_update(record, replacement_field_tag, oclc_response):
+    def __remove_fields(field, record):
         """
-        Updates the record data fields using OCLC XML data.
+        Removes field, first checking for 1xx an removing
+        all 1xx fields on match.  The OCLC record may include
+        a different 1xx than the original file, so this is
+        necessary. This method is called after a successful
+        OCLC data fetch and before OCLC data is added to the
+        record.
+
+        :param field: current field
+        :param record: current record
+        :return:
+        """
+        field_1xx_regex = re.compile('^1\d{2}')
+        # Single 1xx field allowed in record.
+        if field_1xx_regex.match(field):
+            record.remove_fields('100', '110', '111', '130')
+        else:
+            record.remove_fields(field)
+
+    def __data_field_update(self, record, replacement_field_tag, oclc_response):
+        """
+        Updates the record data field using OCLC XML response.
+
         :param record: the pymarc Record
         :param replacement_field_tag: the field to replace
         :param oclc_response: the OCLC XML response
@@ -21,7 +43,7 @@ class RecordsModifier:
         ns = {'': 'http://www.loc.gov/MARC21/slim'}
         tags = oclc_response.findall('.//*[@tag="' + replacement_field_tag + '"]', ns)
         if tags:
-            record.remove_fields(replacement_field_tag)
+            self.__remove_fields(replacement_field_tag, record)
             for f in tags:
                 field = field_generator.get_data_field(f, f.attrib, replacement_field_tag)
                 if field:
@@ -30,7 +52,8 @@ class RecordsModifier:
     @staticmethod
     def __control_field_update(record, replacement_field, oclc_response):
         """
-        Updates the record control fields using OCLC XML data.
+        Updates the record control fields using OCLC XML response.
+
         :param record: the pymarc Record
         :param replacement_field: the field to replace
         :param oclc_response: the OCLC XML response
@@ -64,12 +87,12 @@ class RecordsModifier:
 
 
 
-    def update_fields_using_oclc(self, file, substitutions, writer, unmodified_writer, bad_writer, oclc_developer_key):
+    def update_fields_using_oclc(self, file, substitutions, writer, unmodified_writer, bad_writer, title_log_writer, oclc_developer_key):
         """
         Updates records from input marc file with data obtained
         from OCLC worldcat.  The method takes a substitutions array
-        that specifies the fields to be updated. Possible values are
-        008, 007, 245.
+        that specifies the fields to be updated.
+
         :param file: The marc file (binary)
         :param substitutions: The array of fields to update
         :param writer: The output file writer
@@ -114,7 +137,7 @@ class RecordsModifier:
                             self.__add_oclc_001_003(record, oclc_number)
 
                         # Modify records if match with OCLC response.
-                        if utils.verify_oclc_response(oclc_response, title):
+                        if utils.verify_oclc_response(oclc_response, title, title_log_writer):
                             if '006' in substitutions:
                                 self.__control_field_update(record, '006', oclc_response)
                             if '007' in substitutions:

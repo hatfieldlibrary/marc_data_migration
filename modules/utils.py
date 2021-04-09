@@ -53,7 +53,7 @@ def get_oclc_035_value(field_035):
     return oclc_number
 
 
-def verify_oclc_response(oclc_response, title):
+def verify_oclc_response(oclc_response, title, title_log_writer):
     """
     Verifies that the 245a value in the OCLC response
     matches the expected value for the current record.
@@ -79,7 +79,7 @@ def verify_oclc_response(oclc_response, title):
                     node_text = re.sub(end_of_line_substitution, '', data_node.text)
                     node_text = re.sub(normalization, '', node_text)
                     # do fuzzy match
-                    return fuzz.findMatch(node_text.lower(), pnca_title.lower())
+                    return fuzz.findMatch(node_text.lower(), pnca_title.lower(), title_log_writer)
         except Exception as e:
             print(e)
     else:
