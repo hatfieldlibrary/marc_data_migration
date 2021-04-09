@@ -12,7 +12,7 @@ class OclcConnector:
         control_character_replacement = re.compile('\s+\d+$')
         lookup = re.sub(control_character_replacement, '', lookup)
         path = 'http://www.worldcat.org/webservices/catalog/content/' + lookup + '?wskey=' + oclc_developer_key
-        # print(path)
+        print(path)
         with urllib.request.urlopen(path) as response:
             xml_response = response.read().decode()
             try:

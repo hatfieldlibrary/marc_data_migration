@@ -34,9 +34,9 @@ class ControlFieldGenerator:
 
     ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
-    def get_control_field(self, field, oclcResponse):
+    def get_control_field(self, field, oclc_response):
 
-        tag = oclcResponse.find('.//*[@tag="' + field + '"]')
+        tag = oclc_response.find('.//*[@tag="' + field + '"]')
         if tag is not None:
             return Field(
                 tag=field,

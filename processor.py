@@ -5,10 +5,11 @@ from modules.records_modifier import RecordsModifier
 with open('/Users/michaelspalti/oclc_worldcat_my_key.txt', 'r') as fh:
     oclc_developer_key = fh.readline().strip()
 
-updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty.txt', 'wt'))
-unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty.txt', 'wt'))
-title_log_writer = TextWriter(open('output/logs/title_fuzzy_match.txt', 'wt'))
-oclc_xml_writer = open('output/xml/oclc.xml', 'wt')
+updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty.txt', 'w'))
+unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty.txt', 'w'))
+title_log_writer = open('output/logs/title_fuzzy_match.txt', 'w')
+oclc_xml_writer = open('output/xml/oclc.xml', 'w')
+field_subtitution_audit_writer = open('output/audit/fields_audit.txt', 'w')
 # Write to binary.
 bad_records_writer = open('output/updated-records/bad-records-pretty.txt', 'wb')
 
@@ -56,6 +57,7 @@ fields_array = [
     '611',
     '630',
     '650',
+    '651',
     '655',
     '700',
     '710',
@@ -66,6 +68,9 @@ fields_array = [
     '765',
     '780'
 ]
+
+title_log_writer.write('original\toclc\tratio\n\n')
+
 modifier.update_fields_using_oclc('data/bib/full-export-orig.txt',
                                   fields_array,
                                   updated_records_writer,
@@ -73,7 +78,11 @@ modifier.update_fields_using_oclc('data/bib/full-export-orig.txt',
                                   bad_records_writer,
                                   title_log_writer,
                                   oclc_xml_writer,
+                                  field_subtitution_audit_writer,
                                   oclc_developer_key,
+                                  True,
                                   True)
 
-
+title_log_writer.close()
+bad_records_writer.close()
+field_subtitution_audit_writer.close()

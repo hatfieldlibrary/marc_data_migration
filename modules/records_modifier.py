@@ -1,4 +1,5 @@
 from urllib.error import HTTPError
+import xml.etree.ElementTree as ET
 from pymarc import MARCReader, Field
 from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
 from modules.oclc_connector import OclcConnector
@@ -7,7 +8,6 @@ import re
 
 
 class RecordsModifier:
-
     connector = OclcConnector()
 
     @staticmethod
@@ -31,7 +31,34 @@ class RecordsModifier:
         else:
             record.remove_fields(field)
 
-    def __data_field_update(self, record, replacement_field_tag, oclc_response):
+    def __get_original_values(self, originals):
+        """
+        Get values from field array.
+        :param originals: fields from original marc record
+        :return:
+        """
+        values = []
+        for original in originals:
+            values.append(original.value())
+        return values
+
+    def __write_to_audit_log(self, replacement_field, original_fields, field, control_field, writer):
+        """
+        Writes field replacements to audit log.
+        :param replacement_field: name of the replacement field
+        :param original_fields: fields from original marc record
+        :param field: current pymarc Field
+        :param control_field: value of the record 001 or the record title varying with data and control field contexts.
+        :param writer: the audit log writer
+        :return:
+        """
+        for single_field in self.__get_original_values(original_fields):
+            writer.write(control_field + ' || '
+                         + replacement_field + ' || '
+                         + field.value() + ' || '
+                         + single_field + '\n')
+
+    def __data_field_update(self, record, replacement_field_tag, oclc_response, audit_writer, track_fields):
         """
         Updates the record data field using OCLC XML response.
 
@@ -43,14 +70,18 @@ class RecordsModifier:
         ns = {'': 'http://www.loc.gov/MARC21/slim'}
         tags = oclc_response.findall('.//*[@tag="' + replacement_field_tag + '"]', ns)
         if tags:
+            original_fields = record.get_fields(replacement_field_tag)
+            original_title = record.title()
+            field_008 = record['001'].value()
             self.__remove_fields(replacement_field_tag, record)
             for f in tags:
                 field = field_generator.get_data_field(f, f.attrib, replacement_field_tag)
                 if field:
+                    if track_fields:
+                        self.__write_to_audit_log(replacement_field_tag, original_fields, field, field_008, audit_writer)
                     record.add_ordered_field(field)
 
-    @staticmethod
-    def __control_field_update(record, replacement_field, oclc_response):
+    def __control_field_update(self, record, replacement_field, oclc_response, audit_writer, track_fields):
         """
         Updates the record control fields using OCLC XML response.
 
@@ -61,6 +92,10 @@ class RecordsModifier:
         field_generator = ControlFieldGenerator()
         field = field_generator.get_control_field(replacement_field, oclc_response)
         if field:
+            original_fields = record.get_fields(replacement_field)
+            original_title = record.title()
+            if track_fields:
+                self.__write_to_audit_log(replacement_field, original_fields, field, original_title, audit_writer)
             record.remove_fields(replacement_field)
             record.add_ordered_field(field)
 
@@ -78,13 +113,12 @@ class RecordsModifier:
             tag='001',
             data=oclc_number
         )
-        field_003 =  Field(
+        field_003 = Field(
             tag='003',
             data='OCoLC'
         )
         record.add_ordered_field(field_001)
         record.add_ordered_field(field_003)
-
 
     def update_fields_using_oclc(self,
                                  file,
@@ -94,8 +128,10 @@ class RecordsModifier:
                                  bad_writer,
                                  title_log_writer,
                                  oclc_xml_writer,
+                                 field_audit_writer,
                                  oclc_developer_key,
-                                 save_oclc_response=False):
+                                 save_oclc_response=False,
+                                 save_field_audit=False):
         """
         Updates records from input marc file with data obtained
         from OCLC worldcat.  The method takes a substitutions array
@@ -107,8 +143,10 @@ class RecordsModifier:
         :param bad_writer: The output file records that cannot be processed
         :param title_log_writer: The output title for fuzzy matched titles
         :param oclc_xml_writer: The output file for OCLC xml
+        :param field_audit_writer: The output file tracking field updates
         :param oclc_developer_key: The developer key used to query OCLC
         :param save_oclc_response: If true OCLC resposes are written to local file for reuse
+        :param save_field_audit: It true, field updates are added to audit file.
         :return:
         """
         if save_oclc_response:
@@ -147,122 +185,175 @@ class RecordsModifier:
                         if oh_one_value:
                             oclc_response = self.connector.get_oclc_response(oh_one_value, oclc_developer_key)
                             if save_oclc_response:
-                                oclc_xml_writer.write(oclc_response)
+                                oclc_xml_writer.write(str(ET.tostring(oclc_response, encoding='utf8', method='xml')))
                         elif oclc_number:
                             oclc_response = self.connector.get_oclc_response(oclc_number, oclc_developer_key)
                             if save_oclc_response:
-                                oclc_xml_writer.write(oclc_response)
+                                oclc_xml_writer.write(str(ET.tostring(oclc_response, encoding='utf8', method='xml')))
                             # For loading assure OCLC values in 001 and 003. Alma load will generate 035.
                             self.__add_oclc_001_003(record, oclc_number)
 
                         # Modify records if match with OCLC response.
                         if utils.verify_oclc_response(oclc_response, title, title_log_writer):
                             if '006' in substitutions:
-                                self.__control_field_update(record, '006', oclc_response)
+                                self.__control_field_update(record, '006',
+                                                            oclc_response, field_audit_writer, save_field_audit)
                             if '007' in substitutions:
-                                self.__control_field_update(record, '007', oclc_response)
+                                self.__control_field_update(record, '007',
+                                                            oclc_response, field_audit_writer, save_field_audit)
                             if '008' in substitutions:
-                                self.__control_field_update(record, '008', oclc_response)
+                                self.__control_field_update(record, '008',
+                                                            oclc_response, field_audit_writer, save_field_audit)
                             if '024' in substitutions:
-                                self.__data_field_update(record, '024', oclc_response)
+                                self.__data_field_update(record, '024',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '035' in substitutions:
-                                self.__data_field_update(record, '035', oclc_response)
+                                self.__data_field_update(record, '035',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '028' in substitutions:
-                                self.__data_field_update(record, '028', oclc_response)
+                                self.__data_field_update(record, '028',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '041' in substitutions:
-                                self.__data_field_update(record, '041', oclc_response)
+                                self.__data_field_update(record, '041',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '043' in substitutions:
-                                self.__data_field_update(record, '043', oclc_response)
+                                self.__data_field_update(record, '043',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '082' in substitutions:
-                                self.__data_field_update(record, '082', oclc_response)
+                                self.__data_field_update(record, '082',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '084' in substitutions:
-                                self.__data_field_update(record, '084', oclc_response)
+                                self.__data_field_update(record, '084',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '100' in substitutions:
-                                self.__data_field_update(record, '100', oclc_response)
+                                self.__data_field_update(record, '100',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '110' in substitutions:
-                                self.__data_field_update(record, '110', oclc_response)
+                                self.__data_field_update(record, '110',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '111' in substitutions:
-                                self.__data_field_update(record, '111', oclc_response)
+                                self.__data_field_update(record, '111',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '130' in substitutions:
-                                self.__data_field_update(record, '130', oclc_response)
+                                self.__data_field_update(record, '130',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '222' in substitutions:
-                                self.__data_field_update(record, '222', oclc_response)
+                                self.__data_field_update(record, '222',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '240' in substitutions:
-                                self.__data_field_update(record, '240', oclc_response)
+                                self.__data_field_update(record, '240',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '245' in substitutions:
-                                self.__data_field_update(record, '245', oclc_response)
+                                self.__data_field_update(record, '245',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '246' in substitutions:
-                                self.__data_field_update(record, '246', oclc_response)
+                                self.__data_field_update(record, '246',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '247' in substitutions:
-                                self.__data_field_update(record, '247', oclc_response)
+                                self.__data_field_update(record, '247',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '250' in substitutions:
-                                self.__data_field_update(record, '250', oclc_response)
+                                self.__data_field_update(record, '250',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '264' in substitutions:
-                                self.__data_field_update(record, '264', oclc_response)
+                                self.__data_field_update(record, '264',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '300' in substitutions:
-                                self.__data_field_update(record, '300', oclc_response)
+                                self.__data_field_update(record, '300',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '337' in substitutions:
-                                self.__data_field_update(record, '337', oclc_response)
+                                self.__data_field_update(record, '337',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '340' in substitutions:
-                                self.__data_field_update(record, '340', oclc_response)
+                                self.__data_field_update(record, '340',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '362' in substitutions:
-                                self.__data_field_update(record, '362', oclc_response)
+                                self.__data_field_update(record, '362',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '386' in substitutions:
-                                self.__data_field_update(record, '386', oclc_response)
+                                self.__data_field_update(record, '386',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '490' in substitutions:
-                                self.__data_field_update(record, '490', oclc_response)
+                                self.__data_field_update(record, '490',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '505' in substitutions:
-                                self.__data_field_update(record, '505', oclc_response)
+                                self.__data_field_update(record, '505',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '510' in substitutions:
-                                self.__data_field_update(record, '510', oclc_response)
+                                self.__data_field_update(record, '510',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '511' in substitutions:
-                                self.__data_field_update(record, '511', oclc_response)
+                                self.__data_field_update(record, '511',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '520' in substitutions:
-                                self.__data_field_update(record, '520', oclc_response)
+                                self.__data_field_update(record, '520',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '521' in substitutions:
-                                self.__data_field_update(record, '521', oclc_response)
+                                self.__data_field_update(record, '521',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '526' in substitutions:
-                                self.__data_field_update(record, '526', oclc_response)
+                                self.__data_field_update(record, '526',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '533' in substitutions:
-                                self.__data_field_update(record, '533', oclc_response)
+                                self.__data_field_update(record, '533',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '538' in substitutions:
-                                self.__data_field_update(record, '538', oclc_response)
+                                self.__data_field_update(record, '538',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '541' in substitutions:
-                                self.__data_field_update(record, '541', oclc_response)
+                                self.__data_field_update(record, '541',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '550' in substitutions:
-                                self.__data_field_update(record, '550', oclc_response)
+                                self.__data_field_update(record, '550',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '600' in substitutions:
-                                self.__data_field_update(record, '600', oclc_response)
+                                self.__data_field_update(record, '600',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '610' in substitutions:
-                                self.__data_field_update(record, '610', oclc_response)
+                                self.__data_field_update(record, '610',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '611' in substitutions:
-                                self.__data_field_update(record, '611', oclc_response)
+                                self.__data_field_update(record, '611',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '630' in substitutions:
-                                self.__data_field_update(record, '630', oclc_response)
+                                self.__data_field_update(record, '630',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '650' in substitutions:
-                                self.__data_field_update(record, '650', oclc_response)
+                                self.__data_field_update(record, '650',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '651' in substitutions:
-                                self.__data_field_update(record, '651', oclc_response)
+                                self.__data_field_update(record, '651',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '655' in substitutions:
-                                self.__data_field_update(record, '655', oclc_response)
+                                self.__data_field_update(record, '655',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '700' in substitutions:
-                                self.__data_field_update(record, '700', oclc_response)
+                                self.__data_field_update(record, '700',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '710' in substitutions:
-                                self.__data_field_update(record, '710', oclc_response)
+                                self.__data_field_update(record, '710',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '730' in substitutions:
-                                self.__data_field_update(record, '730', oclc_response)
+                                self.__data_field_update(record, '730',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '740' in substitutions:
-                                self.__data_field_update(record, '740', oclc_response)
+                                self.__data_field_update(record, '740',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '752' in substitutions:
-                                self.__data_field_update(record, '752', oclc_response)
+                                self.__data_field_update(record, '752',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '760' in substitutions:
-                                self.__data_field_update(record, '760', oclc_response)
+                                self.__data_field_update(record, '760',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '765' in substitutions:
-                                self.__data_field_update(record, '765', oclc_response)
+                                self.__data_field_update(record, '765',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '776' in substitutions:
-                                self.__data_field_update(record, '776', oclc_response)
+                                self.__data_field_update(record, '776',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                             if '780' in substitutions:
-                                self.__data_field_update(record, '780', oclc_response)
+                                self.__data_field_update(record, '780',
+                                                         oclc_response, field_audit_writer, save_field_audit)
                         else:
                             # For unmodified records, write to a separate file and continue.
                             unmodified_writer.write(record)
@@ -288,4 +379,3 @@ class RecordsModifier:
         print('Modified record count: ' + str(modified_count))
         print('Unmodified record count: ' + str(unmodified_count))
         print('Bad record count: ' + str(bad_record_count))
-

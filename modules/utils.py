@@ -80,7 +80,8 @@ def verify_oclc_response(oclc_response, title, title_log_writer):
                     node_text = re.sub(normalization, '', node_text)
                     # do fuzzy match
                     fuzz = FuzzyMatcher()
-                    return fuzz.find_match(node_text.lower(), pnca_title.lower(), title_log_writer)
+                    return fuzz.find_match(node_text.lower(), pnca_title.lower(),
+                                           title, data_node.text, title_log_writer)
         except Exception as e:
             print(e)
     else:
