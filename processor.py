@@ -1,3 +1,5 @@
+from typing import TextIO
+
 from pymarc import TextWriter
 from modules.records_modifier import RecordsModifier
 import argparse
@@ -17,7 +19,8 @@ args = parser.parse_args()
 task = args.task
 
 if task == 'replace':
-    # Get developer key
+
+    # Get developer key. Change path as needed!
     with open('/Users/michaelspalti/oclc_worldcat_my_key.txt', 'r') as fh:
         oclc_developer_key = fh.readline().strip()
 
@@ -27,17 +30,24 @@ if task == 'replace':
     # unmodified records
     unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty.txt', 'w'))
 
-    # optional report on fuzzy title matching for most current OCLC harvest
-    title_log_writer = open('output/logs/title_fuzzy_match.txt', 'w')
-
-    # optional marcxml file for most current OCLC harvest
-    oclc_xml_writer = open('output/xml/oclc.xml', 'w')
-
-    # optional field replacement audit for most current OCLC harvest
-    field_subtitution_audit_writer = open('output/audit/fields_audit.txt', 'w')
-
     # Write unreadable records to binary file.
     bad_records_writer = open('output/updated-records/bad-records-pretty.txt', 'wb')
+
+    title_log_writer = None
+    oclc_xml_writer = None
+    field_substitution_audit_writer = None
+
+    # optional report on fuzzy title matching for most current OCLC harvest
+    if args.track_title_matches:
+        title_log_writer = open('output/logs/title_fuzzy_match.txt', 'w')
+
+    # optional marcxml file for most current OCLC harvest
+    if args.save_oclc:
+        oclc_xml_writer = open('output/xml/oclc.xml', 'w')
+
+    # optional field replacement audit for most current OCLC harvest
+    if args.track_fields:
+        field_substitution_audit_writer = open('output/audit/fields_audit.txt', 'w')
 
     # Fields to be replaced if found in the OCLC record.
     fields_array = [
@@ -105,12 +115,11 @@ if task == 'replace':
                                       bad_records_writer,
                                       title_log_writer,
                                       oclc_xml_writer,
-                                      field_subtitution_audit_writer,
-                                      oclc_developer_key,
-                                      args.save_oclc,
-                                      args.track_fields,
-                                      args.track_title_matches)
+                                      field_substitution_audit_writer,
+                                      oclc_developer_key)
 
-    title_log_writer.close()
     bad_records_writer.close()
-    field_subtitution_audit_writer.close()
+    if title_log_writer is not None:
+        title_log_writer.close()
+    if field_substitution_audit_writer is not None:
+        field_substitution_audit_writer.close()
