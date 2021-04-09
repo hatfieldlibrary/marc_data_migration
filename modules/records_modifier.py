@@ -35,7 +35,7 @@ class RecordsModifier:
         """
         Get values from field array.
         :param originals: fields from original marc record
-        :return:
+        :return: list of field values
         """
         values = []
         for original in originals:
@@ -102,8 +102,8 @@ class RecordsModifier:
     @staticmethod
     def __add_oclc_001_003(record, oclc_number):
         """
-        Use this method to add 001 and 003 fields to records
-        that are missing this information.
+        Add 001 and 003 fields to a record. Use to guarantee this
+        information is in every record.
         :param record:  pymarc record
         :param oclc_number: OCLC number
         """

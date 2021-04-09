@@ -6,6 +6,13 @@ import re
 class OclcConnector:
 
     def get_oclc_response(self, oclc, oclc_developer_key):
+        """
+        Queries Worldcat API and returns response as XML string.
+
+        :param oclc: the oclc number
+        :param oclc_developer_key: oclc developer key
+        :return:
+        """
         # Insurance
         lookup = oclc.replace('ocn', '').replace('ocm', '').replace('on', '')
         # Odd thing that is in at least one record. This obviously should never happen.
