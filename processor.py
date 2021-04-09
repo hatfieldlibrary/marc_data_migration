@@ -8,6 +8,7 @@ with open('/Users/michaelspalti/oclc_worldcat_my_key.txt', 'r') as fh:
 updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty.txt', 'wt'))
 unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty.txt', 'wt'))
 title_log_writer = TextWriter(open('output/logs/title_fuzzy_match.txt', 'wt'))
+oclc_xml_writer = open('output/xml/oclc.xml', 'wt')
 # Write to binary.
 bad_records_writer = open('output/updated-records/bad-records-pretty.txt', 'wb')
 
@@ -71,6 +72,8 @@ modifier.update_fields_using_oclc('data/bib/full-export-orig.txt',
                                   unmodified_records_writer,
                                   bad_records_writer,
                                   title_log_writer,
-                                  oclc_developer_key)
+                                  oclc_xml_writer,
+                                  oclc_developer_key,
+                                  True)
 
 

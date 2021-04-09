@@ -86,20 +86,35 @@ class RecordsModifier:
         record.add_ordered_field(field_003)
 
 
-
-    def update_fields_using_oclc(self, file, substitutions, writer, unmodified_writer, bad_writer, title_log_writer, oclc_developer_key):
+    def update_fields_using_oclc(self,
+                                 file,
+                                 substitutions,
+                                 writer,
+                                 unmodified_writer,
+                                 bad_writer,
+                                 title_log_writer,
+                                 oclc_xml_writer,
+                                 oclc_developer_key,
+                                 save_oclc_response=False):
         """
         Updates records from input marc file with data obtained
         from OCLC worldcat.  The method takes a substitutions array
         that specifies the fields to be updated.
-
         :param file: The marc file (binary)
-        :param substitutions: The array of fields to update
+        :param substitutions: he array of fields to update
         :param writer: The output file writer
         :param unmodified_writer: The output file writer for unmodifed records
         :param bad_writer: The output file records that cannot be processed
-        :param oclc_developer_key: the developer key used to query OCLC
+        :param title_log_writer: The output title for fuzzy matched titles
+        :param oclc_xml_writer: The output file for OCLC xml
+        :param oclc_developer_key: The developer key used to query OCLC
+        :param save_oclc_response: If true OCLC resposes are written to local file for reuse
+        :return:
         """
+        if save_oclc_response:
+            oclc_xml_writer.write('<collection xmlns="http://www.loc.gov/MARC21/slim" '
+                                  'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+                                  'xsi:schemaLocation="http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">')
         with open(file, 'rb') as fh:
             modified_count = 0
             unmodified_count = 0
@@ -131,8 +146,12 @@ class RecordsModifier:
                         # Use 001 by default. Try 035 if the 001 is not available.
                         if oh_one_value:
                             oclc_response = self.connector.get_oclc_response(oh_one_value, oclc_developer_key)
+                            if save_oclc_response:
+                                oclc_xml_writer.write(oclc_response)
                         elif oclc_number:
                             oclc_response = self.connector.get_oclc_response(oclc_number, oclc_developer_key)
+                            if save_oclc_response:
+                                oclc_xml_writer.write(oclc_response)
                             # For loading assure OCLC values in 001 and 003. Alma load will generate 035.
                             self.__add_oclc_001_003(record, oclc_number)
 
@@ -263,7 +282,10 @@ class RecordsModifier:
                     print(reader.current_chunk)
                     bad_writer.write(reader.current_chunk)
 
-            print('Modified record count: ' + str(modified_count))
-            print('Unmodified record count: ' + str(unmodified_count))
-            print('Bad record count: ' + str(bad_record_count))
+        if save_oclc_response:
+            oclc_xml_writer.write('</collection>')
+
+        print('Modified record count: ' + str(modified_count))
+        print('Unmodified record count: ' + str(unmodified_count))
+        print('Bad record count: ' + str(bad_record_count))
 
