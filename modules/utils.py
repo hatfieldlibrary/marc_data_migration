@@ -1,5 +1,5 @@
 import re
-from modules.fuzzy_match import FuzzyMatcher as fuzz
+from modules.fuzzy_match import FuzzyMatcher
 
 valid_format_regex = re.compile('^\d+$')
 ns = {'': 'http://www.loc.gov/MARC21/slim'}
@@ -79,7 +79,8 @@ def verify_oclc_response(oclc_response, title, title_log_writer):
                     node_text = re.sub(end_of_line_substitution, '', data_node.text)
                     node_text = re.sub(normalization, '', node_text)
                     # do fuzzy match
-                    return fuzz.findMatch(node_text.lower(), pnca_title.lower(), title_log_writer)
+                    fuzz = FuzzyMatcher()
+                    return fuzz.find_match(node_text.lower(), pnca_title.lower(), title_log_writer)
         except Exception as e:
             print(e)
     else:
