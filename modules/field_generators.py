@@ -18,10 +18,9 @@ class DataFieldGenerator:
         new_fields = []
         first_indicator = attrib['ind1']
         second_indicator = attrib['ind2']
-        subfields = tag.find('.//subfield', self.ns)
-        for subfield_id in subfields.attrib['code']:
-            new_fields.append(subfield_id)
-            subfield = tag.find('.//subfield[@code="' + subfield_id + '"]', self.ns)
+        subfields = tag.findall('.//subfield', self.ns)
+        for subfield in subfields:
+            new_fields.append(subfield.attrib['code'])
             new_fields.append(subfield.text)
         indicators = [first_indicator, second_indicator]
         return Field(
