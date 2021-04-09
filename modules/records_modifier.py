@@ -131,7 +131,8 @@ class RecordsModifier:
                                  field_audit_writer,
                                  oclc_developer_key,
                                  save_oclc_response=False,
-                                 save_field_audit=False):
+                                 save_field_audit=False,
+                                 save_title_ratios=False):
         """
         Updates records from input marc file with data obtained
         from OCLC worldcat.  The method takes a substitutions array
@@ -147,6 +148,7 @@ class RecordsModifier:
         :param oclc_developer_key: The developer key used to query OCLC
         :param save_oclc_response: If true OCLC resposes are written to local file for reuse
         :param save_field_audit: It true, field updates are added to audit file.
+        :param save_title_ratios: It true, title match ratios less than 100 added to log file
         :return:
         """
         if save_oclc_response:
@@ -194,7 +196,7 @@ class RecordsModifier:
                             self.__add_oclc_001_003(record, oclc_number)
 
                         # Modify records if match with OCLC response.
-                        if utils.verify_oclc_response(oclc_response, title, title_log_writer):
+                        if utils.verify_oclc_response(oclc_response, title, title_log_writer, save_title_ratios):
                             if '006' in substitutions:
                                 self.__control_field_update(record, '006',
                                                             oclc_response, field_audit_writer, save_field_audit)
