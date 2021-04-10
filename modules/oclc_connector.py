@@ -5,7 +5,7 @@ import re
 
 class OclcConnector:
 
-    def get_oclc_response(self, oclc, oclc_developer_key):
+    def get_oclc_response(self, oclc, oclc_developer_key, raw=False):
         """
         Queries Worldcat API and returns response as XML string.
 
@@ -23,7 +23,10 @@ class OclcConnector:
         with urllib.request.urlopen(path) as response:
             xml_response = response.read().decode()
             try:
-                return ET.fromstring(xml_response)
+                if not raw:
+                    return ET.fromstring(xml_response)
+                else:
+                    return xml_response
             except:
                 print('Cannot parse marcxml response.')
 

@@ -1,40 +1,60 @@
-from typing import TextIO
-
 from pymarc import TextWriter
 from modules.records_modifier import RecordsModifier
+from modules.fetch_marcxml import FetchMarcXMLRecs
 import argparse
 import datetime
 
+# data/bib/full-export-orig.txt
+
 parser = argparse.ArgumentParser(description='Process marc records.')
 
-parser.add_argument('task', metavar='task', type=str,
-                    help='the task to run (replace|move|modify)')
-parser.add_argument("-oc", "--save-oclc", action="store_true",
-                    help="Save records from OCLC to local xml file for reuse.")
+parser.add_argument('source', metavar='source', type=str,
+                    help='path to the marc file that will be processed')
+parser.add_argument('-r', '--replace-fields', action='store_true',
+                    help='replace fields with OCLC data')
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modifed fields.")
 parser.add_argument("-m", "--track-title-matches", action="store_true",
                     help="Create a log of fuzzy title matches.")
-args = parser.parse_args()
+parser.add_argument("-so", "--save-oclc", action="store_true",
+                    help="Save records from OCLC to local xml file for reuse.")
+parser.add_argument('-oc', '--oclc-records', action='store_true',
+                    help='just download the OCLC marcxml records')
 
-task = args.task
+args = parser.parse_args()
 
 dt = datetime.datetime.now()
 
-if task == 'replace':
+source = args.source
+if not source:
+    raise AssertionError("You must provide a source file.")
+
+
+if args.oclc_records:
+
+    # Get developer key. Change path as needed!
+    with open('/Users/michaelspalti/oclc_worldcat_my_key.txt', 'r') as fh:
+        oclc_developer_key = fh.readline().strip()
+
+    oclc_xml_writer = open('output/xml/oclc-' + str(dt) + '.xml', 'w')
+
+    fetch_recs = FetchMarcXMLRecs()
+    fetch_recs.fetch_marcxml(source, oclc_xml_writer, oclc_developer_key)
+
+if args.replace_fields:
 
     # Get developer key. Change path as needed!
     with open('/Users/michaelspalti/oclc_worldcat_my_key.txt', 'r') as fh:
         oclc_developer_key = fh.readline().strip()
 
     # updated records
-    updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty-' + dt + '.txt', 'w'))
+    updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # unmodified records
-    unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty-' + dt + '.txt', 'w'))
+    unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # Write unreadable records to binary file.
-    bad_records_writer = open('output/updated-records/bad-records-pretty-' + dt + '.txt', 'wb')
+    bad_records_writer = open('output/updated-records/bad-records-pretty-' + str(dt) + '.txt', 'wb')
 
     title_log_writer = None
     oclc_xml_writer = None
@@ -43,7 +63,7 @@ if task == 'replace':
 
     # optional report on fuzzy title matching for most current OCLC harvest
     if args.track_title_matches:
-        title_log_writer = open('output/audit/title_fuzzy_match-' + dt + '.txt', 'w')
+        title_log_writer = open('output/audit/title_fuzzy_match-' + str(dt) + '.txt', 'w')
 
     # optional marcxml file for most current OCLC harvest
     if args.save_oclc:
@@ -51,7 +71,7 @@ if task == 'replace':
 
     # optional field replacement audit for most current OCLC harvest
     if args.track_fields:
-        field_substitution_audit_writer = open('output/audit/fields_audit-' + dt + '.txt', 'w')
+        field_substitution_audit_writer = open('output/audit/fields_audit-' + str(dt) + '.txt', 'w')
 
     # Fields to be replaced if found in the OCLC record.
     fields_array = [
@@ -112,7 +132,7 @@ if task == 'replace':
 
     modifier = RecordsModifier()
 
-    modifier.update_fields_using_oclc('data/bib/full-export-orig.txt',
+    modifier.update_fields_using_oclc(args.source,
                                       fields_array,
                                       updated_records_writer,
                                       unmodified_records_writer,

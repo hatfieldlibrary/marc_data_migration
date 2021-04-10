@@ -146,6 +146,7 @@ class RecordsModifier:
         :return:
         """
         if oclc_xml_writer is not None:
+            oclc_xml_writer.write('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>')
             oclc_xml_writer.write('<collection xmlns="http://www.loc.gov/MARC21/slim" '
                                   'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                                   'xsi:schemaLocation="http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">')
