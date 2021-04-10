@@ -3,12 +3,13 @@ from typing import TextIO
 from pymarc import TextWriter
 from modules.records_modifier import RecordsModifier
 import argparse
+import datetime
 
 parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('task', metavar='task', type=str,
                     help='the task to run (replace|move|modify)')
-parser.add_argument("-o", "--save-oclc", action="store_true",
+parser.add_argument("-oc", "--save-oclc", action="store_true",
                     help="Save records from OCLC to local xml file for reuse.")
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modifed fields.")
@@ -18,6 +19,8 @@ args = parser.parse_args()
 
 task = args.task
 
+dt = datetime.datetime.now()
+
 if task == 'replace':
 
     # Get developer key. Change path as needed!
@@ -25,29 +28,30 @@ if task == 'replace':
         oclc_developer_key = fh.readline().strip()
 
     # updated records
-    updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty.txt', 'w'))
+    updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty-' + dt + '.txt', 'w'))
 
     # unmodified records
-    unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty.txt', 'w'))
+    unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty-' + dt + '.txt', 'w'))
 
     # Write unreadable records to binary file.
-    bad_records_writer = open('output/updated-records/bad-records-pretty.txt', 'wb')
+    bad_records_writer = open('output/updated-records/bad-records-pretty-' + dt + '.txt', 'wb')
 
     title_log_writer = None
     oclc_xml_writer = None
     field_substitution_audit_writer = None
+    input_marc_xml = None
 
     # optional report on fuzzy title matching for most current OCLC harvest
     if args.track_title_matches:
-        title_log_writer = open('output/logs/title_fuzzy_match.txt', 'w')
+        title_log_writer = open('output/audit/title_fuzzy_match-' + dt + '.txt', 'w')
 
     # optional marcxml file for most current OCLC harvest
     if args.save_oclc:
-        oclc_xml_writer = open('output/xml/oclc.xml', 'w')
+        oclc_xml_writer = open('output/xml/oclc-' + dt + '.xml', 'w')
 
     # optional field replacement audit for most current OCLC harvest
     if args.track_fields:
-        field_substitution_audit_writer = open('output/audit/fields_audit.txt', 'w')
+        field_substitution_audit_writer = open('output/audit/fields_audit-' + dt + '.txt', 'w')
 
     # Fields to be replaced if found in the OCLC record.
     fields_array = [
