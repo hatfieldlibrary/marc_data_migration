@@ -1,5 +1,6 @@
 from urllib.error import HTTPError
 import re
+import time
 from pymarc import MARCReader
 import modules.utils as utils
 from modules.oclc_connector import OclcConnector
@@ -10,7 +11,7 @@ class FetchMarcXMLRecs:
     connector = OclcConnector()
 
     def fetch_marcxml(self, file, oclc_xml_writer, oclc_developer_key):
-
+        count = 0
         if oclc_xml_writer is not None:
             oclc_xml_writer.write('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>')
             oclc_xml_writer.write('<collection xmlns="http://www.loc.gov/MARC21/slim" '
@@ -45,12 +46,14 @@ class FetchMarcXMLRecs:
                             oclc_response = re.sub(regex, '', oclc_response)
                             if oclc_xml_writer is not None:
                                 oclc_xml_writer.write(oclc_response)
+                                count += 1
                         elif oclc_number:
                             oclc_response = self.connector.get_oclc_response(oclc_number, oclc_developer_key, True)
                             oclc_response = re.sub(regex, '', oclc_response)
                             if oclc_xml_writer is not None:
                                 oclc_xml_writer.write(oclc_response)
-
+                                count += 1
+                        time.sleep(0.5)
                     except HTTPError as err:
                         print(err)
                     except UnicodeEncodeError as err:
@@ -60,3 +63,5 @@ class FetchMarcXMLRecs:
 
         if oclc_xml_writer is not None:
             oclc_xml_writer.write('</collection>')
+
+        print('Downloaded record count: ' + str(count))

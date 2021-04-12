@@ -3,7 +3,7 @@ from fuzzywuzzy import fuzz
 
 class FuzzyMatcher:
 
-    def __log_fuzzy_matches(self, orig1, orig2, match_ratio, title_log_writer):
+    def __log_fuzzy_matches(self, orig1, orig2, value1, value2, match_ratio, title_log_writer):
         """
         Logs matches and match ratios.
 
@@ -18,10 +18,17 @@ class FuzzyMatcher:
                 message = 'passed'
             else:
                 message = 'failed'
-            title_log_writer.write(orig1 + '\t' +
-                                   orig2 + '\t' + str(match_ratio) + '\t' + message + '\n')
 
-    def find_match(self, value1, value2, orig1, orig2,  title_log_writer):
+            log_message = orig1 + '\t' \
+                          + orig2 + '\t' \
+                          + '"' + value1 + '"\t' \
+                          + '"' + value2 + '"\t' \
+                          + str(match_ratio) + '\t' \
+                          + message + '\n'
+
+            title_log_writer.write(log_message)
+
+    def find_match(self, value1, value2, orig1, orig2, title_log_writer):
         """
         Checks for matching titles using default fuzzy match ratio.
 
@@ -36,12 +43,12 @@ class FuzzyMatcher:
         if match_ratio < 100:
             # Will be None if option not selected
             if title_log_writer is not None:
-                self.__log_fuzzy_matches(orig1, orig2, match_ratio, title_log_writer)
+                self.__log_fuzzy_matches(orig1, orig2, value1, value2, match_ratio, title_log_writer)
         if match_ratio >= 80:
             return True
         return False
 
-    def find_match_with_ratio(self, value1, value2, orig1, orig2,  ratio, title_log_writer):
+    def find_match_with_ratio(self, value1, value2, orig1, orig2, ratio, title_log_writer):
         """
         Checks for matching titles using provided fuzzy match ratio.
 
@@ -57,8 +64,7 @@ class FuzzyMatcher:
         if match_ratio < 100:
             # Will be None if option not selected
             if title_log_writer is not None:
-                self.__log_fuzzy_matches(orig1, orig2, match_ratio, title_log_writer)
+                self.__log_fuzzy_matches(orig1, orig2, value1, value2, match_ratio, title_log_writer)
         if match_ratio >= ratio:
             return True
         return False
-

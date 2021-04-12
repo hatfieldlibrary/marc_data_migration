@@ -5,6 +5,7 @@ from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
 from modules.oclc_connector import OclcConnector
 import modules.utils as utils
 import re
+import psycopg2
 
 
 class RecordsModifier:
@@ -58,7 +59,7 @@ class RecordsModifier:
                          + field.value() + ' || '
                          + single_field + '\n')
 
-    def __data_field_update(self, record, replacement_field_tag, oclc_response, audit_writer, track_fields):
+    def __data_field_update(self, record, replacement_field_tag, oclc_response, audit_writer):
         """
         Updates the record data field using OCLC XML response.
 
@@ -77,11 +78,11 @@ class RecordsModifier:
             for f in tags:
                 field = field_generator.get_data_field(f, f.attrib, replacement_field_tag)
                 if field:
-                    if track_fields:
+                    if audit_writer:
                         self.__write_to_audit_log(replacement_field_tag, original_fields, field, field_008, audit_writer)
                     record.add_ordered_field(field)
 
-    def __control_field_update(self, record, replacement_field, oclc_response, audit_writer, track_fields):
+    def __control_field_update(self, record, replacement_field, oclc_response, audit_writer):
         """
         Updates the record control fields using OCLC XML response.
 
@@ -94,7 +95,7 @@ class RecordsModifier:
         if field:
             original_fields = record.get_fields(replacement_field)
             original_title = record.title()
-            if track_fields:
+            if audit_writer:
                 self.__write_to_audit_log(replacement_field, original_fields, field, original_title, audit_writer)
             record.remove_fields(replacement_field)
             record.add_ordered_field(field)
@@ -122,7 +123,9 @@ class RecordsModifier:
 
     def update_fields_using_oclc(self,
                                  file,
+                                 database_name,
                                  substitutions,
+                                 title_check,
                                  writer,
                                  unmodified_writer,
                                  bad_writer,
@@ -135,7 +138,9 @@ class RecordsModifier:
         from OCLC worldcat.  The method takes a substitutions array
         that specifies the fields to be updated.
         :param file: The marc file (binary)
+        :param database_name: Optional database name
         :param substitutions: he array of fields to update
+        :param title_check: If true will do 245a fuzzy title match
         :param writer: The output file writer
         :param unmodified_writer: The output file writer for unmodifed records
         :param bad_writer: The output file records that cannot be processed
@@ -150,6 +155,16 @@ class RecordsModifier:
             oclc_xml_writer.write('<collection xmlns="http://www.loc.gov/MARC21/slim" '
                                   'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                                   'xsi:schemaLocation="http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">')
+
+        conn = None
+        cursor = None
+        if database_name:
+            # If database provided, initialize the connection and get cursor. If not
+            # provided the OCLC API will be used.
+            conn = psycopg2.connect(database="pnca", user="postgres",  host="127.0.0.1", port="5432")
+            print("Database opened successfully")
+            cursor = conn.cursor()
+
         with open(file, 'rb') as fh:
             modified_count = 0
             unmodified_count = 0
@@ -158,40 +173,59 @@ class RecordsModifier:
             # unreadable records in the output. Prevent python utf-8
             # handling.
             reader = MARCReader(fh, permissive=True, utf8_handling='ignore')
+
             for record in reader:
                 if record:
-                    oh_one_value = None
-                    oclc_number = None
+                    field_001 = None
+                    field_035 = None
                     title = ''
+
                     try:
                         if record['245'] and record['245']['a']:
                             title = record['245']['a']
                         # Get values for 001 value, 035 value, and title.
                         # These are used to request and verify data from OCLC.
                         if len(record.get_fields('001')) == 1:
-                            oh_one_value = utils.get_oclc_001_value(record['001'], record['003'])
+                            field_001 = utils.get_oclc_001_value(record['001'], record['003'])
 
                         if record['035'] and record['035']['a']:
-                            oclc_number = utils.get_oclc_035_value(record['035']['a'])
+                            field_035 = utils.get_oclc_035_value(record['035']['a'])
                     except:
                         print('error reading fields from input record: ' + title)
 
                     try:
                         oclc_response = None
                         # Use 001 by default. Try 035 if the 001 is not available.
-                        if oh_one_value:
-                            oclc_response = self.connector.get_oclc_response(oh_one_value, oclc_developer_key)
+                        if field_001:
+                            if cursor is not None:
+                                cursor.execute("""SELECT oclc FROM oclc where id=%s""", [field_001])
+                                row = cursor.fetchone()
+                                if row:
+                                    oclc_response = ET.fromstring(row[0])
+                            else:
+                                oclc_response = self.connector.get_oclc_response(field_001, oclc_developer_key)
                             if oclc_xml_writer is not None:
-                                oclc_xml_writer.write(str(ET.tostring(oclc_response, encoding='utf8', method='xml')))
-                        elif oclc_number:
-                            oclc_response = self.connector.get_oclc_response(oclc_number, oclc_developer_key)
+                                oclc_xml_writer.write(str(ET.tostring(oclc_response,
+                                                                          encoding='utf8',
+                                                                          method='xml')))
+                        elif field_035:
+                            if cursor is not None:
+                                cursor.execute("""SELECT oclc FROM oclc where id=%s""", [field_035])
+                                row = cursor.fetchone()
+                                if row:
+                                    oclc_response = ET.fromstring(row[0])
+                            else:
+                                oclc_response = self.connector.get_oclc_response(field_035, oclc_developer_key)
                             if oclc_xml_writer is not None:
-                                oclc_xml_writer.write(str(ET.tostring(oclc_response, encoding='utf8', method='xml')))
+                                oclc_xml_writer.write(str(ET.tostring(oclc_response,
+                                                                      encoding='utf8',
+                                                                      method='xml')))
+
                             # For loading assure OCLC values in 001 and 003. Alma load will generate 035.
-                            self.__add_oclc_001_003(record, oclc_number)
+                            self.__add_oclc_001_003(record, field_035)
 
                         # Modify records if match with OCLC response.
-                        if utils.verify_oclc_response(oclc_response, title, title_log_writer):
+                        if utils.verify_oclc_response(oclc_response, title, title_log_writer, title_check):
                             if '006' in substitutions:
                                 self.__control_field_update(record, '006',
                                                             oclc_response, field_audit_writer)
@@ -372,6 +406,9 @@ class RecordsModifier:
 
         if oclc_xml_writer is not None:
             oclc_xml_writer.write('</collection>')
+
+        if conn is not None:
+            conn.close()
 
         print('Modified record count: ' + str(modified_count))
         print('Unmodified record count: ' + str(unmodified_count))

@@ -53,7 +53,7 @@ def get_oclc_035_value(field_035):
     return oclc_number
 
 
-def verify_oclc_response(oclc_response, title, title_log_writer):
+def verify_oclc_response(oclc_response, title, title_log_writer, title_check):
     """
     Verifies that the 245a value in the OCLC response
     matches the expected value for the current record.
@@ -65,12 +65,20 @@ def verify_oclc_response(oclc_response, title, title_log_writer):
     :param: title the expected title in 245a
     :return: boolean true for match
     """
+
+    if not oclc_response:
+        return False
+
+    if not title_check:
+        if oclc_response:
+            return True
+
     if oclc_response:
         try:
             data_node = oclc_response.find('.//*[@tag="245"]//subfield[@code="a"]', ns)
             if data_node.text:
                 # ignore end-of-field punctuation
-                end_of_line_substitution = re.compile('\W+$')
+                end_of_line_substitution = re.compile('[\W|\\t]+$')
                 # remove spaces from comparison
                 normalization = re.compile('\s+')
                 pnca_title = re.sub(end_of_line_substitution, '', title)
@@ -80,7 +88,7 @@ def verify_oclc_response(oclc_response, title, title_log_writer):
                     node_text = re.sub(normalization, '', node_text)
                     # do fuzzy match
                     fuzz = FuzzyMatcher()
-                    return fuzz.find_match(node_text.lower(), pnca_title.lower(),
+                    return fuzz.find_match(pnca_title.lower(), node_text.lower(),
                                            title, data_node.text, title_log_writer)
         except Exception as e:
             print(e)

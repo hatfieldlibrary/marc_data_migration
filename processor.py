@@ -4,12 +4,16 @@ from modules.fetch_marcxml import FetchMarcXMLRecs
 import argparse
 import datetime
 
-# data/bib/full-export-orig.txt
+database_name = 'pnca'
 
 parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
                     help='path to the marc file that will be processed')
+parser.add_argument('-db', '--use-database', type=str,
+                    help='postgres database name to be used instead of OCLC API')
+parser.add_argument('-nt', '--no-title-check', action='store_false',
+                    help='skip the fuzzy title match on 245a')
 parser.add_argument('-r', '--replace-fields', action='store_true',
                     help='replace fields with OCLC data')
 parser.add_argument("-t", "--track-fields", action="store_true",
@@ -29,6 +33,8 @@ source = args.source
 if not source:
     raise AssertionError("You must provide a source file.")
 
+# optional database name to use instead of OCLC API
+database_name = args.use_database
 
 if args.oclc_records:
 
@@ -67,7 +73,7 @@ if args.replace_fields:
 
     # optional marcxml file for most current OCLC harvest
     if args.save_oclc:
-        oclc_xml_writer = open('output/xml/oclc-' + dt + '.xml', 'w')
+        oclc_xml_writer = open('output/xml/oclc-' + str(dt) + '.xml', 'w')
 
     # optional field replacement audit for most current OCLC harvest
     if args.track_fields:
@@ -128,12 +134,16 @@ if args.replace_fields:
         '780'
     ]
 
-    title_log_writer.write('original\toclc\tratio\n\n')
+    title_log_writer.write('original\toclc\ttest 1\ttest 2\tratio\tstatus\n\n')
 
     modifier = RecordsModifier()
 
+    t = args.no_title_check
+
     modifier.update_fields_using_oclc(args.source,
+                                      database_name,
                                       fields_array,
+                                      args.no_title_check,
                                       updated_records_writer,
                                       unmodified_records_writer,
                                       bad_records_writer,

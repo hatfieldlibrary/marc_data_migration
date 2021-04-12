@@ -5,12 +5,17 @@ import psycopg2
 conn = psycopg2.connect(database="pnca", user="postgres",  host="127.0.0.1", port="5432")
 print("Database opened successfully")
 cursor = conn.cursor()
-path = '/Users/michaelspalti/willamette/pnca-marc-records/output/xml/oclc-2021-04-10 14:50:36.088895.xml'
+path = '/Users/michaelspalti/willamette/pnca-marc-records/output/xml/oclc-2021-04-11 12:24:43.170467.xml'
 
-ns = {'': 'http://www.loc.gov/MARC21/slim'}
-
+count = 0
+count_001 = 0
+count_035 = 0
 for event, elem in ET.iterparse(path, events=('start', 'end'), tag='{http://www.loc.gov/MARC21/slim}record'):
     if event == 'end':
+        count += 1
+        field_001 = None
+        field_035 = None
+        subfield_a = None
         if elem.tag == '{http://www.loc.gov/MARC21/slim}record':
             for child in list(elem):
                 tag = child.get('tag')
@@ -21,17 +26,33 @@ for event, elem in ET.iterparse(path, events=('start', 'end'), tag='{http://www.
                         field_003 = child.text
                     if tag == '035':
                         field_035 = child.text
+                    if tag == '245':
+                        for subfield in child:
+                            at = subfield.attrib.get("code")
+                            if at == 'a':
+                                subfield_a = subfield.text
+
 
         xml_output = ET.tounicode(elem, method='xml', pretty_print=False, with_tail=True, doctype=None)
 
-        if field_001 is not None:
-            cursor.execute('INSERT INTO oclc (id, oclc)  VALUES (%s, %s)', (field_001, xml_output))
-        elif field_035 is not None:
-            cursor.execute('INSERT INTO oclc (id, oclc) VALUES (%s, $s)', (field_003, xml_output))
+        if field_001 and subfield_a:
+            count_001 += 1
+            cursor.execute('INSERT INTO oclc (id, title, oclc)  VALUES (%s, %s, %s)',
+                           (field_001, subfield_a, xml_output))
+        elif field_035 and subfield_a:
+            count_035 += 1
+            cursor.execute('INSERT INTO oclc (id, title, oclc) VALUES (%s, %s, %s)',
+                           (field_003, subfield_a, xml_output))
+        else:
+            print('could not read data from input')
 
         conn.commit()
 
         print('record inserted.')
         elem.clear()
+
+print('total: ' + str(count))
+print('001: ' + str(count_001))
+print('035: ' + str(count_035))
 
 conn.close()
