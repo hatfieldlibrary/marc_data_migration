@@ -178,16 +178,16 @@ class RecordsModifier:
                 if record:
                     field_001 = None
                     field_035 = None
+                    current_oclc_number = None
                     title = ''
 
                     try:
                         if record['245'] and record['245']['a']:
-                            title = record['245']['a']
+                            title = utils.get_original_title(record)
                         # Get values for 001 value, 035 value, and title.
                         # These are used to request and verify data from OCLC.
                         if len(record.get_fields('001')) == 1:
                             field_001 = utils.get_oclc_001_value(record['001'], record['003'])
-
                         if record['035'] and record['035']['a']:
                             field_035 = utils.get_oclc_035_value(record['035']['a'])
                     except:
@@ -197,6 +197,7 @@ class RecordsModifier:
                         oclc_response = None
                         # Use 001 by default. Try 035 if the 001 is not available.
                         if field_001:
+                            current_oclc_number = field_001
                             if cursor is not None:
                                 cursor.execute("""SELECT oclc FROM oclc where id=%s""", [field_001])
                                 row = cursor.fetchone()
@@ -209,6 +210,7 @@ class RecordsModifier:
                                                                           encoding='utf8',
                                                                           method='xml')))
                         elif field_035:
+                            current_oclc_number = field_035
                             if cursor is not None:
                                 cursor.execute("""SELECT oclc FROM oclc where id=%s""", [field_035])
                                 row = cursor.fetchone()
@@ -225,7 +227,8 @@ class RecordsModifier:
                             self.__add_oclc_001_003(record, field_035)
 
                         # Modify records if match with OCLC response.
-                        if utils.verify_oclc_response(oclc_response, title, title_log_writer, title_check):
+                        if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
+                                                      current_oclc_number, title_check):
                             if '006' in substitutions:
                                 self.__control_field_update(record, '006',
                                                             oclc_response, field_audit_writer)

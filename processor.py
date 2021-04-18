@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
                     help='path to the marc file that will be processed')
-parser.add_argument('-db', '--use-database', type=str,
+parser.add_argument('-db', '--use-database', metavar='database name', type=str,
                     help='postgres database name to be used instead of OCLC API')
 parser.add_argument('-nt', '--no-title-check', action='store_false',
                     help='skip the fuzzy title match on 245a')
@@ -69,7 +69,7 @@ if args.replace_fields:
 
     # optional report on fuzzy title matching for most current OCLC harvest
     if args.track_title_matches:
-        title_log_writer = open('output/audit/title_fuzzy_match-' + str(dt) + '.txt', 'w')
+        title_log_writer = open('output/audit/title_fuzzy_match-' + str(dt) + '.csv', 'w')
 
     # optional marcxml file for most current OCLC harvest
     if args.save_oclc:
@@ -134,7 +134,7 @@ if args.replace_fields:
         '780'
     ]
 
-    title_log_writer.write('original\toclc\ttest 1\ttest 2\tratio\tstatus\n\n')
+    # title_log_writer.write('original\toclc\ttest 1\ttest 2\tratio\tstatus\n\n')
 
     modifier = RecordsModifier()
 
