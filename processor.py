@@ -9,21 +9,21 @@ database_name = 'pnca'
 parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
-                    help='path to the marc file that will be processed')
+                    help='Path to the marc file that will be processed')
 parser.add_argument('-db', '--use-database', metavar='database name', type=str,
-                    help='postgres database name to be used instead of OCLC API')
-parser.add_argument('-nt', '--no-title-check', action='store_false',
-                    help='skip the fuzzy title match on 245a')
+                    help='Postgres database name to be used instead of OCLC API')
 parser.add_argument('-r', '--replace-fields', action='store_true',
-                    help='replace fields with OCLC data')
+                    help='Replace fields with OCLC data')
+parser.add_argument('-nt', '--no-title-check', action='store_false',
+                    help='Skip the fuzzy title match on 245a before updating records')
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modifed fields.")
 parser.add_argument("-m", "--track-title-matches", action="store_true",
                     help="Create a log of fuzzy title matches.")
 parser.add_argument("-so", "--save-oclc", action="store_true",
-                    help="Save records from OCLC to local xml file for reuse.")
+                    help="Save records from OCLC to local xml file during replacement.")
 parser.add_argument('-oc', '--oclc-records', action='store_true',
-                    help='just download the OCLC marcxml records')
+                    help='Download marcxml for all records with OCLC number.')
 
 args = parser.parse_args()
 
@@ -39,7 +39,7 @@ database_name = args.use_database
 if args.oclc_records:
 
     # Get developer key. Change path as needed!
-    with open('/Users/michaelspalti/oclc_worldcat_my_key.txt', 'r') as fh:
+    with open('/Users/mspalti/oclc_worldcat_my_key.txt', 'r') as fh:
         oclc_developer_key = fh.readline().strip()
 
     oclc_xml_writer = open('output/xml/oclc-' + str(dt) + '.xml', 'w')

@@ -1,6 +1,5 @@
 from urllib.error import HTTPError
 import re
-import time
 from pymarc import MARCReader
 import modules.utils as utils
 from modules.oclc_connector import OclcConnector
