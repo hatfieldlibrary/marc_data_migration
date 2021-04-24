@@ -1,4 +1,7 @@
 from pymarc import TextWriter
+
+from modules.check_oclc_numbers import CompareOclcNumbers
+from modules.duplicate_record_check import CheckDuplicates
 from modules.records_modifier import RecordsModifier
 from modules.fetch_marcxml import FetchMarcXMLRecs
 import argparse
@@ -9,11 +12,14 @@ database_name = 'pnca'
 parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
-                    help='Path to the marc file that will be processed')
+                    help='Required: the path to the marc file to be processed')
 parser.add_argument('-db', '--use-database', metavar='database name', type=str,
                     help='Postgres database name to be used instead of OCLC API')
 parser.add_argument('-r', '--replace-fields', action='store_true',
-                    help='Replace fields with OCLC data')
+                    help='Replace fields with fields from the OCLC record.')
+parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
+                    help='This utility retrieves OCLC records and compares oclc numbers in'
+                         'the response and the original input file. Logs the discrepancies for analysis.')
 parser.add_argument('-nt', '--no-title-check', action='store_false',
                     help='Skip the fuzzy title match on 245a before updating records')
 parser.add_argument("-t", "--track-fields", action="store_true",
@@ -21,9 +27,12 @@ parser.add_argument("-t", "--track-fields", action="store_true",
 parser.add_argument("-m", "--track-title-matches", action="store_true",
                     help="Create a log of fuzzy title matches.")
 parser.add_argument("-so", "--save-oclc", action="store_true",
-                    help="Save records from OCLC to local xml file during replacement.")
+                    help="Save records from OCLC to local xml file during replacement task.")
 parser.add_argument('-oc', '--oclc-records', action='store_true',
-                    help='Download marcxml for all records with OCLC number.')
+                    help='Only download marcxml for all records with OCLC number, no other '
+                         'tasks performed.')
+parser.add_argument('-d', '--duplicates', action='store_true',
+                     help='Checks the source file for duplicate OCLC numbers in the database.')
 
 args = parser.parse_args()
 
@@ -35,6 +44,20 @@ if not source:
 
 # optional database name to use instead of OCLC API
 database_name = args.use_database
+
+# if database requires password replace empty string
+password = 'Sibale2'
+
+if args.compare_oclc_numbers:
+    writer = open('output/audit/oclc-number-comparison' + str(dt) + '.csv', 'w')
+    compare = CompareOclcNumbers()
+    compare.compare_oclc_numbers(source, writer)
+
+if args.duplicates:
+    writer = open('output/audit/duplicate-local-records-' + str(dt) + '.csv', 'w')
+    find_dups = CheckDuplicates()
+    # add password here if required
+    find_dups.check_duplicates(source, database_name, password, writer)
 
 if args.oclc_records:
 
@@ -50,7 +73,7 @@ if args.oclc_records:
 if args.replace_fields:
 
     # Get developer key. Change path as needed!
-    with open('/Users/michaelspalti/oclc_worldcat_my_key.txt', 'r') as fh:
+    with open('/Users/mspalti/oclc_worldcat_my_key.txt', 'r') as fh:
         oclc_developer_key = fh.readline().strip()
 
     # updated records
@@ -66,6 +89,8 @@ if args.replace_fields:
     oclc_xml_writer = None
     field_substitution_audit_writer = None
     input_marc_xml = None
+
+    cancelled_log_writer = open('output/audit/cancelled-oclc-' + str(dt) + '.csv', 'w')
 
     # optional report on fuzzy title matching for most current OCLC harvest
     if args.track_title_matches:
@@ -131,7 +156,9 @@ if args.replace_fields:
         '752',
         '760',
         '765',
-        '780'
+        '780',
+        '830',
+        '850'
     ]
 
     # title_log_writer.write('original\toclc\ttest 1\ttest 2\tratio\tstatus\n\n')
@@ -142,6 +169,7 @@ if args.replace_fields:
 
     modifier.update_fields_using_oclc(args.source,
                                       database_name,
+                                      password,
                                       fields_array,
                                       args.no_title_check,
                                       updated_records_writer,
@@ -150,6 +178,7 @@ if args.replace_fields:
                                       title_log_writer,
                                       oclc_xml_writer,
                                       field_substitution_audit_writer,
+                                      cancelled_log_writer,
                                       oclc_developer_key)
 
     bad_records_writer.close()

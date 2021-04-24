@@ -1,11 +1,12 @@
 from urllib.error import HTTPError
 import xml.etree.ElementTree as ET
-from pymarc import MARCReader, Field
+from pymarc import MARCReader, Field, Leader
 from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
 from modules.oclc_connector import OclcConnector
+from db_connector import DatabaseConnector
 import modules.utils as utils
+import modules.field_replacement_count as field_count
 import re
-import psycopg2
 
 
 class RecordsModifier:
@@ -32,6 +33,7 @@ class RecordsModifier:
         else:
             record.remove_fields(field)
 
+
     def __get_original_values(self, originals):
         """
         Get values from field array.
@@ -42,6 +44,7 @@ class RecordsModifier:
         for original in originals:
             values.append(original.value())
         return values
+
 
     def __write_to_audit_log(self, replacement_field, original_fields, field, control_field, writer):
         """
@@ -54,10 +57,46 @@ class RecordsModifier:
         :return:
         """
         for single_field in self.__get_original_values(original_fields):
-            writer.write(control_field + ' || '
-                         + replacement_field + ' || '
-                         + field.value() + ' || '
+            writer.write(control_field + '\t'
+                         + replacement_field + '\t'
+                         + field.value() + '\t'
                          + single_field + '\n')
+
+        field_count.update_field_count(replacement_field)
+
+
+    def __conditional_move(self, record, replacement_field_tag, oclc_response):
+        # Move the existing 505(a) to 590 when no replacement value was
+        # provided by OCLC
+        if replacement_field_tag == '505':
+            # Test to see if replacement 505 was provided in OCLC record.
+            # If not, move field in the current record to preserve in local
+            # 590 field.
+            oclc_field = oclc_response.find('./*[@tag="505"]')
+            if oclc_field is None:
+                field_505s = record.get_fields('505')
+                # found 505 in original record
+                if len(field_505s) > 0:
+                    # capture the single 505 field
+                    field_505 = field_505s[0]
+                    # clear existing record field
+                    record.remove_fields('505')
+                    # indicators from record field
+                    indicators = [field_505.indicator1, field_505.indicator2]
+                    subfield_505 = field_505.get_subfields('a')
+                    # subfield a from record
+                    if len(subfield_505) == 1:
+                        subfields = ['a', subfield_505[0]]
+                        # create new 590 with data from the 505
+                        field = Field(
+                            tag='590',
+                            indicators=indicators,
+                            subfields=subfields
+                        )
+                        # add 590 to record
+                        record.add_ordered_field(field)
+                        field_count.update_field_count('590')
+
 
     def __data_field_update(self, record, replacement_field_tag, oclc_response, audit_writer):
         """
@@ -70,17 +109,20 @@ class RecordsModifier:
         field_generator = DataFieldGenerator()
         ns = {'': 'http://www.loc.gov/MARC21/slim'}
         tags = oclc_response.findall('.//*[@tag="' + replacement_field_tag + '"]', ns)
-        if tags:
+        if len(tags) > 0:
             original_fields = record.get_fields(replacement_field_tag)
-            original_title = record.title()
-            field_008 = record['001'].value()
+            field_001 = record['001'].value()
             self.__remove_fields(replacement_field_tag, record)
             for f in tags:
                 field = field_generator.get_data_field(f, f.attrib, replacement_field_tag)
                 if field:
                     if audit_writer:
-                        self.__write_to_audit_log(replacement_field_tag, original_fields, field, field_008, audit_writer)
+                        self.__write_to_audit_log(replacement_field_tag, original_fields, field, field_001, audit_writer)
                     record.add_ordered_field(field)
+        else:
+            if replacement_field_tag == '505':
+                    self.__conditional_move(record, replacement_field_tag, oclc_response)
+
 
     def __control_field_update(self, record, replacement_field, oclc_response, audit_writer):
         """
@@ -94,11 +136,13 @@ class RecordsModifier:
         field = field_generator.get_control_field(replacement_field, oclc_response)
         if field:
             original_fields = record.get_fields(replacement_field)
-            original_title = record.title()
+            field_001 = record['001'].value()
             if audit_writer:
-                self.__write_to_audit_log(replacement_field, original_fields, field, original_title, audit_writer)
+                self.__write_to_audit_log(replacement_field, original_fields, field, field_001, audit_writer)
+
             record.remove_fields(replacement_field)
             record.add_ordered_field(field)
+
 
     @staticmethod
     def __add_oclc_001_003(record, oclc_number):
@@ -121,9 +165,19 @@ class RecordsModifier:
         record.add_ordered_field(field_001)
         record.add_ordered_field(field_003)
 
+
+    def __replace_leader(self, record, oclc_reponse):
+        ns = {'': 'http://www.loc.gov/MARC21/slim'}
+        oclc_leader = oclc_reponse.find('./', ns)
+        new_leader = Leader(oclc_leader.text)
+        if new_leader:
+            record.leader = new_leader
+
+
     def update_fields_using_oclc(self,
                                  file,
                                  database_name,
+                                 password,
                                  substitutions,
                                  title_check,
                                  writer,
@@ -132,6 +186,7 @@ class RecordsModifier:
                                  title_log_writer,
                                  oclc_xml_writer,
                                  field_audit_writer,
+                                 cancelled_oclc_writer,
                                  oclc_developer_key):
         """
         Updates records from input marc file with data obtained
@@ -139,6 +194,7 @@ class RecordsModifier:
         that specifies the fields to be updated.
         :param file: The marc file (binary)
         :param database_name: Optional database name
+        :param password: Optional database password
         :param substitutions: he array of fields to update
         :param title_check: If true will do 245a fuzzy title match
         :param writer: The output file writer
@@ -161,7 +217,8 @@ class RecordsModifier:
         if database_name:
             # If database provided, initialize the connection and get cursor. If not
             # provided the OCLC API will be used.
-            conn = psycopg2.connect(database="pnca", user="postgres",  host="127.0.0.1", port="5432")
+            db_connect = DatabaseConnector()
+            conn = db_connect.get_connection(database_name, password)
             print("Database opened successfully")
             cursor = conn.cursor()
 
@@ -182,16 +239,27 @@ class RecordsModifier:
                     title = ''
 
                     try:
+                        if not record.title():
+                            print('record missing 245(a) or (b)...most likely (a)')
                         if record['245'] and record['245']['a']:
                             title = utils.get_original_title(record)
                         # Get values for 001 value, 035 value, and title.
                         # These are used to request and verify data from OCLC.
                         if len(record.get_fields('001')) == 1:
                             field_001 = utils.get_oclc_001_value(record['001'], record['003'])
-                        if record['035'] and record['035']['a']:
-                            field_035 = utils.get_oclc_035_value(record['035']['a'])
-                    except:
-                        print('error reading fields from input record: ' + title)
+                        if len(record.get_fields('035')) > 0:
+                            fields = record.get_fields('035')
+                            for field in fields:
+                                subfields = field.get_subfields('a')
+                                if len(subfields) > 1:
+                                    print('duplicate 035a')
+                                elif len(subfields) == 1:
+                                    field_035 = utils.get_oclc_035_value(subfields[0])
+                                    utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
+
+                    except Exception as err:
+                        print('error reading fields from input record.')
+                        print(err)
 
                     try:
                         oclc_response = None
@@ -229,6 +297,9 @@ class RecordsModifier:
                         # Modify records if match with OCLC response.
                         if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
                                                       current_oclc_number, title_check):
+
+                            self.__replace_leader(record, oclc_response)
+
                             if '006' in substitutions:
                                 self.__control_field_update(record, '006',
                                                             oclc_response, field_audit_writer)
@@ -388,6 +459,12 @@ class RecordsModifier:
                             if '780' in substitutions:
                                 self.__data_field_update(record, '780',
                                                          oclc_response, field_audit_writer)
+                            if '830' in substitutions:
+                                self.__data_field_update(record, '830',
+                                                         oclc_response, field_audit_writer)
+                            if '850' in substitutions:
+                                self.__data_field_update(record, '850',
+                                                         oclc_response, field_audit_writer)
                         else:
                             # For unmodified records, write to a separate file and continue.
                             unmodified_writer.write(record)
@@ -416,3 +493,12 @@ class RecordsModifier:
         print('Modified record count: ' + str(modified_count))
         print('Unmodified record count: ' + str(unmodified_count))
         print('Bad record count: ' + str(bad_record_count))
+        print()
+
+        field_count_dict = field_count.get_field_count()
+        field_c = 0
+        for key in field_count_dict.keys():
+            print(key + ': ' + str(field_count_dict[key]))
+            field_c += field_count_dict[key]
+
+        print('Total fields replaced: ' + str(field_c))

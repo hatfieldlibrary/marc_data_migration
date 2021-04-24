@@ -17,7 +17,7 @@ class FuzzyMatcher:
         :return:
         """
         if title_log_writer is not None:
-            if match_ratio > 80:
+            if match_ratio >= 75:
                 message = 'passed'
             else:
                 message = 'failed'
@@ -54,7 +54,7 @@ class FuzzyMatcher:
             if title_log_writer is not None:
                 self.__log_fuzzy_matches(orig1, orig2, value1, value2,
                                          match_ratio, current_oclc_number, title_log_writer)
-        if match_ratio >= 80:
+        if match_ratio >= 75:
             return True
         return False
 

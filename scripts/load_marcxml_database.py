@@ -1,11 +1,11 @@
 import lxml.etree as ET
-import psycopg2
+from db_connector import DatabaseConnector
 
-
-conn = psycopg2.connect(database="pnca", user="postgres",  host="127.0.0.1", port="5432")
+db_connect = DatabaseConnector()
+conn = db_connect.get_connection('pnca', 'Sibale2')
 print("Database opened successfully")
 cursor = conn.cursor()
-path = '/Users/michaelspalti/willamette/pnca-marc-records/output/xml/oclc-2021-04-11 12:24:43.170467.xml'
+path = '/Users/mspalti/IdeaProjects/marc_data_migration/output/xml/oclc-2021-04-20 11:02:47.023345.xml'
 
 count = 0
 count_001 = 0

@@ -2,6 +2,7 @@ import re
 from modules.fuzzy_match import FuzzyMatcher
 
 valid_format_regex = re.compile('^\d+$')
+
 ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
 
@@ -44,7 +45,7 @@ def get_oclc_001_value(field_001, field_003):
         value_003 = field_003.value()
 
     if value_001 is not None:
-        if 'ocn' in value_001 or 'ocm' in value_001 or 'om' in value_001:
+        if 'ocn' in value_001 or 'ocm' in value_001 or 'on' in value_001:
             final_value_001 = value_001.replace('ocn', '').replace('ocm', '').replace('on', '')
     elif value_003 is not None:
         if 'OCoLC' in value_003:
@@ -65,13 +66,17 @@ def get_oclc_035_value(field_035):
     :param: field_035 The 035a strng value
     :return: The 035 value or None if not OCLC record
     """
-    oclc_number = None
-    if 'OCoLC' in field_035:
-        oclc_number = field_035.replace('(OCoLC)', '')
-        if valid_format_regex.match(oclc_number):
-            oclc_number = remove_control_chars(oclc_number)
-            return oclc_number
-    return oclc_number
+    if field_035:
+        if 'OCoLC' in field_035:
+            try:
+                oclc_number = field_035.replace('(OCoLC)', '')
+                match = valid_format_regex.match(oclc_number)
+                if match:
+                    oclc_number = remove_control_chars(oclc_number)
+                    return oclc_number
+            except Exception as err:
+                print(err)
+    return None
 
 
 def verify_oclc_response(oclc_response, title, title_log_writer, source_title, current_oclc_number,  title_check):
@@ -82,7 +87,7 @@ def verify_oclc_response(oclc_response, title, title_log_writer, source_title, c
     in the original record. If you need an exact match,
     adjust the fuzzy matching threshold to be 100.
 
-    :param: oclc_response The OCLC XML response
+    :param: oclc_response The XML root Element
     :param: current_oclc_number the number used in the current OCLC lookup
     :param: title the expected title in 245a
     :return: boolean true for match
@@ -97,11 +102,11 @@ def verify_oclc_response(oclc_response, title, title_log_writer, source_title, c
 
     if oclc_response:
         try:
-            data_node = oclc_response.find('.//*[@tag="245"]//subfield[@code="a"]', ns)
-            data_node2 = oclc_response.find('.//*[@tag="245"]//subfield[@code="b"]', ns)
-            data_node3 = oclc_response.find('.//*[@tag="245"]//subfield[@code="c"]', ns)
-            data_node4 = oclc_response.find('.//*[@tag="245"]//subfield[@code="n"]', ns)
-            data_node5 = oclc_response.find('.//*[@tag="245"]//subfield[@code="p"]', ns)
+            data_node = oclc_response.find('./*[@tag="245"]/*[@code="a"]', ns)
+            data_node2 = oclc_response.find('./*[@tag="245"]/*[@code="b"]', ns)
+            data_node3 = oclc_response.find('./*[@tag="245"]/*[@code="c"]', ns)
+            data_node4 = oclc_response.find('./*[@tag="245"]/*[@code="n"]', ns)
+            data_node5 = oclc_response.find('./*[@tag="245"]/*[@code="p"]', ns)
             full_oclc_title = ''
             oclc_comparison = ''
             if data_node.text:
@@ -136,3 +141,17 @@ def verify_oclc_response(oclc_response, title, title_log_writer, source_title, c
     else:
         return False
 
+
+def log_035z(field_element, value_035a, writer):
+    for field in field_element.get_subfields('z'):
+        zvalue = get_oclc_035_value(field)
+        try:
+            if zvalue:
+                if value_035a:
+                    writer.write(zvalue + '\t' + value_035a + '\n')
+                else:
+                    writer.write(zvalue + '\tMissing 035(a)\n')
+
+        except Exception as err:
+            print('error writing to z log.')
+            print(err)
