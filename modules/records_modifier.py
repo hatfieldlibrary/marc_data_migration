@@ -1,6 +1,8 @@
 from urllib.error import HTTPError
 import xml.etree.ElementTree as ET
 from pymarc import MARCReader, Field, Leader
+
+from modules.add_response_to_database import DatabaseUpdate
 from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
 from modules.oclc_connector import OclcConnector
 from db_connector import DatabaseConnector
@@ -11,6 +13,10 @@ import re
 
 class RecordsModifier:
     connector = OclcConnector()
+
+    ns = {'': 'http://www.loc.gov/MARC21/slim'}
+    oclc_developer_key = ''
+    database_update = DatabaseUpdate()
 
     @staticmethod
     def __remove_fields(field, record):
@@ -33,7 +39,6 @@ class RecordsModifier:
         else:
             record.remove_fields(field)
 
-
     def __get_original_values(self, originals):
         """
         Get values from field array.
@@ -44,7 +49,6 @@ class RecordsModifier:
         for original in originals:
             values.append(original.value())
         return values
-
 
     def __write_to_audit_log(self, replacement_field, original_fields, field, control_field, writer):
         """
@@ -63,7 +67,6 @@ class RecordsModifier:
                          + single_field + '\n')
 
         field_count.update_field_count(replacement_field)
-
 
     def __conditional_move(self, record, replacement_field_tag, oclc_response):
         # Move the existing 505(a) to 590 when no replacement value was
@@ -97,7 +100,6 @@ class RecordsModifier:
                         record.add_ordered_field(field)
                         field_count.update_field_count('590')
 
-
     def __data_field_update(self, record, replacement_field_tag, oclc_response, audit_writer):
         """
         Updates the record data field using OCLC XML response.
@@ -107,8 +109,7 @@ class RecordsModifier:
         :param oclc_response: the OCLC XML response
         """
         field_generator = DataFieldGenerator()
-        ns = {'': 'http://www.loc.gov/MARC21/slim'}
-        tags = oclc_response.findall('.//*[@tag="' + replacement_field_tag + '"]', ns)
+        tags = oclc_response.findall('.//*[@tag="' + replacement_field_tag + '"]', self.ns)
         if len(tags) > 0:
             original_fields = record.get_fields(replacement_field_tag)
             field_001 = record['001'].value()
@@ -122,7 +123,6 @@ class RecordsModifier:
         else:
             if replacement_field_tag == '505':
                     self.__conditional_move(record, replacement_field_tag, oclc_response)
-
 
     def __control_field_update(self, record, replacement_field, oclc_response, audit_writer):
         """
@@ -142,7 +142,6 @@ class RecordsModifier:
 
             record.remove_fields(replacement_field)
             record.add_ordered_field(field)
-
 
     @staticmethod
     def __add_oclc_001_003(record, oclc_number):
@@ -165,14 +164,59 @@ class RecordsModifier:
         record.add_ordered_field(field_001)
         record.add_ordered_field(field_003)
 
-
     def __replace_leader(self, record, oclc_reponse):
-        ns = {'': 'http://www.loc.gov/MARC21/slim'}
-        oclc_leader = oclc_reponse.find('./', ns)
+        '''
+        Replaces existing record leader with OCLC value
+        :param record: The record pymarc root node
+        :param oclc_reponse: the OCLC API response node
+        :return:
+        '''
+        oclc_leader = oclc_reponse.find('./', self.ns)
         new_leader = Leader(oclc_leader.text)
         if new_leader:
             record.leader = new_leader
 
+    def __get_oclc_field(self, field_value, oclc_response):
+        '''
+        Gets the 001 field value from oclc.  Redundant API
+        call in case first request returned error
+        :param field_value: the oclc id  to query
+        :param oclc_response: the initial OCLC response (used if valid)
+        :return: the OCLC field node
+        '''
+        oclc_field = oclc_response.find('./*[@tag="001"]')
+        # API returns occasional error. Second attempt
+        # should be enough to guarantee we get a response.
+        if oclc_field is None:
+            oclc_response = self.connector.get_oclc_response(field_value, self.oclc_developer_key)
+            oclc_field = oclc_response.find('./*[@tag="001"]')
+        return oclc_field
+
+    def __database_insert(self, cursor, conn, field, oclc_field, oclc_response, title):
+        '''
+        Insert OCLC record into local database
+        :param cursor: db cursor
+        :param conn: database connectin
+        :param field:  the 001 field value from local input
+        :param oclc_field: the 001 node from oclc response
+        :param oclc_response: the OCLC xml reponse
+        :param title: the item title
+        :return:
+        '''
+        if cursor is not None:
+            try:
+                self.database_update.add_response(
+                    field,
+                    oclc_response,
+                    oclc_field,
+                    title,
+                    cursor
+                    )
+                conn.commit()
+            except Exception as err:
+                print(err)
+        else:
+            print('Missing database connection.')
 
     def update_fields_using_oclc(self,
                                  file,
@@ -180,6 +224,7 @@ class RecordsModifier:
                                  password,
                                  substitutions,
                                  title_check,
+                                 database_insert,
                                  writer,
                                  unmodified_writer,
                                  bad_writer,
@@ -197,15 +242,20 @@ class RecordsModifier:
         :param password: Optional database password
         :param substitutions: he array of fields to update
         :param title_check: If true will do 245a fuzzy title match
+        :param database_insert: If true insert API repsonse into database
         :param writer: The output file writer
         :param unmodified_writer: The output file writer for unmodifed records
         :param bad_writer: The output file records that cannot be processed
         :param title_log_writer: The output title for fuzzy matched titles
         :param oclc_xml_writer: The output file for OCLC xml
         :param field_audit_writer: The output file tracking field updates
+        :param cancelled_oclc_writer: Outputs 035(z) audit
         :param oclc_developer_key: The developer key used to query OCLC
         :return:
         """
+
+        self.oclc_developer_key = oclc_developer_key
+
         if oclc_xml_writer is not None:
             oclc_xml_writer.write('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>')
             oclc_xml_writer.write('<collection xmlns="http://www.loc.gov/MARC21/slim" '
@@ -226,6 +276,9 @@ class RecordsModifier:
             modified_count = 0
             unmodified_count = 0
             bad_record_count = 0
+            updated_003_count = 0
+            updated_001_count = 0
+            updated_leader_count = 0
             # Set to permissive to avoid exiting loop; report
             # unreadable records in the output. Prevent python utf-8
             # handling.
@@ -236,11 +289,12 @@ class RecordsModifier:
                     field_001 = None
                     field_035 = None
                     current_oclc_number = None
+                    oclc_001_value = None
                     title = ''
 
                     try:
                         if not record.title():
-                            print('record missing 245(a) or (b)...most likely (a)')
+                            print('record missing 245(a)')
                         if record['245'] and record['245']['a']:
                             title = utils.get_original_title(record)
                         # Get values for 001 value, 035 value, and title.
@@ -262,44 +316,98 @@ class RecordsModifier:
                         print(err)
 
                     try:
+
+                        # Ugh. The field processing is awkward. Needs improvement. The
+                        # mess is partly the result of unpredictability in API responses
+                        # and partly complex parameterization around database use.
+
                         oclc_response = None
                         # Use 001 by default. Try 035 if the 001 is not available.
                         if field_001:
+                            # set current oclc number to 001 value.
                             current_oclc_number = field_001
-                            if cursor is not None:
+
+                            # Fetch record from database
+                            if cursor is not None and not database_insert:
                                 cursor.execute("""SELECT oclc FROM oclc where id=%s""", [field_001])
                                 row = cursor.fetchone()
                                 if row:
                                     oclc_response = ET.fromstring(row[0])
+                                    oclc_field = oclc_response.find('./*[@tag="001"]')
+                                    oclc_001_value = oclc_field.text
+
+                            # Fetch record from OCLC and optionally update local database.
                             else:
+
                                 oclc_response = self.connector.get_oclc_response(field_001, oclc_developer_key)
+                                oclc_field = self.__get_oclc_field(field_001, oclc_response)
+                                oclc_001_value = oclc_field.text
+
+                                if oclc_field is not None:
+                                    if database_insert:
+                                        self.__database_insert(cursor, conn, field_001, oclc_field, oclc_response, title)
+                                else:
+                                    print('Missing oclc 001 for ' + field_001)
+
                             if oclc_xml_writer is not None:
                                 oclc_xml_writer.write(str(ET.tostring(oclc_response,
                                                                           encoding='utf8',
                                                                           method='xml')))
+
                         elif field_035:
+                            # set current oclc number to 035 value
                             current_oclc_number = field_035
-                            if cursor is not None:
+
+                            # Fetch record from database
+                            if cursor is not None and not database_insert:
                                 cursor.execute("""SELECT oclc FROM oclc where id=%s""", [field_035])
                                 row = cursor.fetchone()
                                 if row:
                                     oclc_response = ET.fromstring(row[0])
+                                    oclc_field = oclc_response.find('./*[@tag="001"]')
+                                    oclc_001_value = oclc_field.text
+
+                            # Fetch record from OCLC and optionally update local database.
                             else:
+
                                 oclc_response = self.connector.get_oclc_response(field_035, oclc_developer_key)
+                                oclc_field = self.__get_oclc_field(field_001, oclc_response)
+                                oclc_001_value = oclc_field.text
+
+                                if oclc_field is not None:
+                                    if database_insert:
+                                        self.__database_insert(cursor, conn, field_035,
+                                                               oclc_field, oclc_response, title)
+                                else:
+                                    print('Missing oclc 001 for ' + field_035)
+
                             if oclc_xml_writer is not None:
                                 oclc_xml_writer.write(str(ET.tostring(oclc_response,
                                                                       encoding='utf8',
                                                                       method='xml')))
 
-                            # For loading assure OCLC values in 001 and 003. Alma load will generate 035.
-                            self.__add_oclc_001_003(record, field_035)
+                        # FIELD REPLACEMENTS
 
-                        # Modify records if match with OCLC response.
+                        # Modify records if match title matches with OCLC response.
                         if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
                                                       current_oclc_number, title_check):
 
-                            self.__replace_leader(record, oclc_response)
+                            # Assure OCLC values are in 001 and 003. Alma load will generate 035.
+                            # Do this after title validation.
+                            if oclc_001_value:
+                                # Update 001 with the value returned in the OCLC API response. This
+                                # can vary from the original value in the input records.
+                                self.__add_oclc_001_003(record, oclc_001_value)
+                                updated_001_count += 1
+                                updated_003_count += 1
+                            else:
+                                raise Exception('Something is wrong, OCLC response missing 001.')
 
+                            # Replace the leader with OCLC leader value.
+                            self.__replace_leader(record, oclc_response)
+                            updated_leader_count += 1
+
+                            # Remaining field substitutions.
                             if '006' in substitutions:
                                 self.__control_field_update(record, '006',
                                                             oclc_response, field_audit_writer)
@@ -497,6 +605,9 @@ class RecordsModifier:
 
         field_count_dict = field_count.get_field_count()
         field_c = 0
+        print('leader: ' + str(updated_leader_count))
+        print('001: ' + str(updated_001_count))
+        print('003: ' + str(updated_003_count))
         for key in field_count_dict.keys():
             print(key + ': ' + str(field_count_dict[key]))
             field_c += field_count_dict[key]
