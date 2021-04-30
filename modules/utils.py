@@ -5,6 +5,8 @@ valid_format_regex = re.compile('^\d+$')
 
 ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
+fuzz = FuzzyMatcher()
+
 
 def get_original_title(record):
     title = ''
@@ -13,7 +15,8 @@ def get_original_title(record):
         for field in field_245:
             subfields = field.subfields_as_dict()
             for key in subfields:
-                if key == 'a' or key == 'b' or key == 'c':
+                if key == 'a' or key == 'b':
+                #if key == 'a' or key == 'b' or key == 'c':
                     title += ' ' + subfields[key][0]
 
     return title
@@ -79,63 +82,104 @@ def get_oclc_035_value(field_035):
     return None
 
 
-def verify_oclc_response(oclc_response, title, title_log_writer, source_title, current_oclc_number,  title_check):
+def get_oclc_node(oclc_response):
+    try:
+        data_node = oclc_response.find('./*[@tag="245"]/*[@code="a"]', ns)
+        data_node2 = oclc_response.find('./*[@tag="245"]/*[@code="b"]', ns)
+        data_node3 = oclc_response.find('./*[@tag="245"]/*[@code="c"]', ns)
+        data_node4 = oclc_response.find('./*[@tag="245"]/*[@code="n"]', ns)
+        data_node5 = oclc_response.find('./*[@tag="245"]/*[@code="p"]', ns)
+        full_oclc_title = ''
+        oclc_comparison_value = ''
+        if data_node.text:
+            if data_node is not None:
+                full_oclc_title += data_node.text
+                oclc_comparison_value += data_node.text
+            if data_node2 is not None:
+                full_oclc_title += data_node2.text
+                oclc_comparison_value += data_node2.text
+            if data_node3 is not None:
+                full_oclc_title += data_node3.text
+                # oclc_comparison_value += data_node3.text
+            if data_node4 is not None:
+                full_oclc_title += '(n: ' + data_node4.text + ')'
+            if data_node5 is not None:
+                full_oclc_title += '(p: ' + data_node5.text + ')'
+            # full_oclc_title used in audit log; oclc_comparison_value
+            # used in match.
+            return [full_oclc_title, oclc_comparison_value]
+
+    except Exception as e:
+        print('Unable to read oclc response 245 field.')
+        print(e)
+
+    return None
+
+
+def normalize_title(title):
+    # ignore end-of-field punctuation
+    end_of_line_substitution = re.compile('[\W|\\t]+')
+    # remove spaces from comparison
+    normalization = re.compile('\s+')
+    title1 = re.sub(end_of_line_substitution, '', title)
+    title2 = re.sub(normalization, '', title1)
+    return title2
+
+
+# def get_match_ratio(oclc_response, title):
+#     title_arr = get_oclc_node(oclc_response)
+#     if title_arr is not None:
+#         if len(title_arr) == 2:
+#             oclc_title = normalize_title(title_arr[1])
+#             pnca_title = normalize_title(title)
+#             return fuzz.get_ratio(pnca_title, oclc_title)
+#
+#     return None
+
+
+def verify_oclc_response(oclc_response, title, title_log_writer, input_title, current_oclc_number, title_check,
+                         require_perfect_match):
     """
-    Verifies that the 245a value in the OCLC response
-    matches the expected value for the current record.
-    This uses a fuzzy match to allow for encoding errors
-    in the original record. If you need an exact match,
+    Verifies that the 245 subfield a and b values in the OCLC response
+    the OCLC response match the expected value for the current record.
+    This uses a fuzzy match to allow for errors in the
+    original record. If you need an exact match,
     adjust the fuzzy matching threshold to be 100.
 
-    :param: oclc_response The XML root Element
-    :param: current_oclc_number the number used in the current OCLC lookup
-    :param: title the expected title in 245a
-    :return: boolean true for match
+    :param oclc_response: The XML root Element
+    :param title: The record title 245(a),(b)
+    :param title_log_writer: fuzzy match audit file
+    :param input_title: The input file title 245(a),(b)
+    :param current_oclc_number: the number used in the current OCLC lookup
+    :param title_check: if True do comparison
+    :param require_perfect_match: if True require a perfect title match
+    :return boolean true if record is verified or does not require verification
     """
 
-    if not oclc_response:
+    if oclc_response is None:
         return False
 
     if not title_check:
-        if oclc_response:
+        if oclc_response is not None:
             return True
 
-    if oclc_response:
+    if oclc_response is not None:
         try:
-            data_node = oclc_response.find('./*[@tag="245"]/*[@code="a"]', ns)
-            data_node2 = oclc_response.find('./*[@tag="245"]/*[@code="b"]', ns)
-            data_node3 = oclc_response.find('./*[@tag="245"]/*[@code="c"]', ns)
-            data_node4 = oclc_response.find('./*[@tag="245"]/*[@code="n"]', ns)
-            data_node5 = oclc_response.find('./*[@tag="245"]/*[@code="p"]', ns)
-            full_oclc_title = ''
-            oclc_comparison = ''
-            if data_node.text:
-                if data_node is not None:
-                    full_oclc_title += data_node.text
-                    oclc_comparison += data_node.text
-                if data_node2 is not None:
-                    full_oclc_title += data_node2.text
-                    oclc_comparison += data_node2.text
-                if data_node3 is not None:
-                    full_oclc_title += data_node3.text
-                    oclc_comparison += data_node3.text
-                if data_node4 is not None:
-                    full_oclc_title += '(n: ' + data_node4.text + ')'
-                if data_node5 is not None:
-                    full_oclc_title += '(p: ' +data_node5.text + ')'
-                # ignore end-of-field punctuation
-                end_of_line_substitution = re.compile('[\W|\\t]+')
-                # remove spaces from comparison
-                normalization = re.compile('\s+')
-                pnca_title = re.sub(end_of_line_substitution, '', title)
-                pnca_title = re.sub(normalization, '', pnca_title)
-                if data_node is not None:
-                    node_text = re.sub(end_of_line_substitution, '', oclc_comparison)
-                    node_text = re.sub(normalization, '', node_text)
-                    # do fuzzy match
-                    fuzz = FuzzyMatcher()
-                    return fuzz.find_match(pnca_title.lower(), node_text.lower(),
-                                           source_title, full_oclc_title, current_oclc_number, title_log_writer)
+            title_arr = get_oclc_node(oclc_response)
+            if title_arr is not None:
+                if len(title_arr) == 2:
+                    node_text = normalize_title(title_arr[1])
+                    pnca_title = normalize_title(title)
+                    if require_perfect_match:
+                        # This is using ratio=100 so a perfect match is required.
+                        return fuzz.find_match_with_ratio(pnca_title.lower(), node_text.lower(),
+                                                          input_title, title_arr[0], 100, current_oclc_number,
+                                                          title_log_writer)
+                    else:
+                        # Any match with a ratio greater than the default ratio will pass.
+                        return fuzz.find_match(pnca_title.lower(), node_text.lower(),
+                                               input_title, title_arr[0], current_oclc_number, title_log_writer)
+
         except Exception as e:
             print(e)
     else:

@@ -5,6 +5,14 @@ class DataFieldGenerator:
 
     ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
+    def create_data_field(self, tag, indicators, subfield, value):
+
+        return Field(
+            tag=tag,
+            indicators=indicators,
+            subfields=[subfield, value]
+        )
+
     def get_data_field(self, tag, attrib, field):
         """
         Extracts data field from the OCLC XML

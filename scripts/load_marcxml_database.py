@@ -32,7 +32,6 @@ for event, elem in ET.iterparse(path, events=('start', 'end'), tag='{http://www.
                             if at == 'a':
                                 subfield_a = subfield.text
 
-
         xml_output = ET.tounicode(elem, method='xml', pretty_print=False, with_tail=True, doctype=None)
 
         if field_001 and subfield_a:

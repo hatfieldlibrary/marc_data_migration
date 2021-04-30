@@ -17,6 +17,11 @@ parser.add_argument('-db', '--use-database', metavar='database name', type=str,
                     help='Postgres database name to be used instead of OCLC API')
 parser.add_argument('-r', '--replace-fields', action='store_true',
                     help='Replace fields with fields from the OCLC record.')
+parser.add_argument('-pm', '--perfect-match', action='store_true',
+                    help='If true a perfect OCLC title match will be required and lesser match ratios are'
+                         'written to separate output file.')
+parser.add_argument('-di', '--database-insert', action='store_true',
+                    help='Insert record into database when replacing fields with OCLC API data. Requires --use-database flag with database name.')
 parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
                     help='This utility retrieves OCLC records and compares oclc numbers in'
                          'the response and the original input file. Logs the discrepancies for analysis.')
@@ -29,7 +34,7 @@ parser.add_argument("-m", "--track-title-matches", action="store_true",
 parser.add_argument("-so", "--save-oclc", action="store_true",
                     help="Save records from OCLC to local xml file during replacement task.")
 parser.add_argument('-oc', '--oclc-records', action='store_true',
-                    help='Only download marcxml for all records with OCLC number, no other '
+                    help='Only download marcxml for records with OCLC number, no other '
                          'tasks performed.')
 parser.add_argument('-d', '--duplicates', action='store_true',
                      help='Checks the source file for duplicate OCLC numbers in the database.')
@@ -51,7 +56,7 @@ password = 'Sibale2'
 if args.compare_oclc_numbers:
     writer = open('output/audit/oclc-number-comparison' + str(dt) + '.csv', 'w')
     compare = CompareOclcNumbers()
-    compare.compare_oclc_numbers(source, writer)
+    compare.compare_oclc_numbers(source, writer, database_name, password)
 
 if args.duplicates:
     writer = open('output/audit/duplicate-local-records-' + str(dt) + '.csv', 'w')
@@ -82,6 +87,10 @@ if args.replace_fields:
     # unmodified records
     unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty-' + str(dt) + '.txt', 'w'))
 
+    # fuzzy field match records
+    fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-records-pretty-' + str(dt) + '.txt', 'w'))
+
+
     # Write unreadable records to binary file.
     bad_records_writer = open('output/updated-records/bad-records-pretty-' + str(dt) + '.txt', 'wb')
 
@@ -103,6 +112,7 @@ if args.replace_fields:
     # optional field replacement audit for most current OCLC harvest
     if args.track_fields:
         field_substitution_audit_writer = open('output/audit/fields_audit-' + str(dt) + '.txt', 'w')
+
 
     # Fields to be replaced if found in the OCLC record.
     fields_array = [
@@ -170,14 +180,17 @@ if args.replace_fields:
     modifier.update_fields_using_oclc(args.source,
                                       database_name,
                                       password,
+                                      args.perfect_match,
                                       fields_array,
                                       args.no_title_check,
+                                      args.database_insert,
                                       updated_records_writer,
                                       unmodified_records_writer,
                                       bad_records_writer,
                                       title_log_writer,
                                       oclc_xml_writer,
                                       field_substitution_audit_writer,
+                                      fuzzy_records_writer,
                                       cancelled_log_writer,
                                       oclc_developer_key)
 

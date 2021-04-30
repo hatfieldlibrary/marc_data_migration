@@ -3,7 +3,8 @@ from fuzzywuzzy import fuzz
 
 class FuzzyMatcher:
 
-    def __log_fuzzy_matches(self, orig1, orig2, value1, value2, match_ratio, current_oclc_number, title_log_writer):
+    def __log_fuzzy_matches(self, orig1, orig2, value1, value2, match_ratio,
+                            ratio, current_oclc_number, title_log_writer):
         """
         Logs matches and match ratios.
 
@@ -17,7 +18,7 @@ class FuzzyMatcher:
         :return:
         """
         if title_log_writer is not None:
-            if match_ratio >= 75:
+            if match_ratio >= ratio:
                 message = 'passed'
             else:
                 message = 'failed'
@@ -30,6 +31,7 @@ class FuzzyMatcher:
                           + str(match_ratio) + '\t' \
                           + message + '\t' \
                           + current_oclc_number + '\t\n'
+
             except TypeError as err:
                 print('Error creating title match log entry: ' + err)
 
@@ -47,15 +49,18 @@ class FuzzyMatcher:
         :param title_log_writer: fuzzy log file handle
         :return: true for match
         """
+        default_ratio = 50
         match_ratio = fuzz.ratio(value1, value2)
+
         # Log all matches that are not exact.
         if match_ratio < 100:
             # Will be None if option not selected
             if title_log_writer is not None:
                 self.__log_fuzzy_matches(orig1, orig2, value1, value2,
-                                         match_ratio, current_oclc_number, title_log_writer)
-        if match_ratio >= 75:
+                                         match_ratio, default_ratio, current_oclc_number, title_log_writer)
+        if match_ratio >= default_ratio:
             return True
+
         return False
 
     def find_match_with_ratio(self, value1, value2, orig1, orig2, ratio, current_oclc_number, title_log_writer):
@@ -72,11 +77,17 @@ class FuzzyMatcher:
         :return: true for match
         """
         match_ratio = fuzz.ratio(value1, value2)
+
         if match_ratio < 100:
             # Will be None if option not selected
             if title_log_writer is not None:
-                self.__log_fuzzy_matches(orig1, orig2, value1, value2, match_ratio,
+                self.__log_fuzzy_matches(orig1, orig2, value1, value2, match_ratio, ratio,
                                          current_oclc_number, title_log_writer)
+
         if match_ratio >= ratio:
             return True
+
         return False
+
+    # def get_ratio(self, value1, value2):
+    #     return fuzz.ratio(value1, value2)
