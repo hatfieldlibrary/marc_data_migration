@@ -3,6 +3,8 @@ from fuzzywuzzy import fuzz
 
 class FuzzyMatcher:
 
+    default_ratio = 50
+
     def __log_fuzzy_matches(self, orig1, orig2, value1, value2, match_ratio,
                             ratio, current_oclc_number, title_log_writer):
         """
@@ -49,7 +51,6 @@ class FuzzyMatcher:
         :param title_log_writer: fuzzy log file handle
         :return: true for match
         """
-        default_ratio = 50
         match_ratio = fuzz.ratio(value1, value2)
 
         # Log all matches that are not exact.
@@ -57,8 +58,8 @@ class FuzzyMatcher:
             # Will be None if option not selected
             if title_log_writer is not None:
                 self.__log_fuzzy_matches(orig1, orig2, value1, value2,
-                                         match_ratio, default_ratio, current_oclc_number, title_log_writer)
-        if match_ratio >= default_ratio:
+                                         match_ratio, self.default_ratio, current_oclc_number, title_log_writer)
+        if match_ratio >= self.default_ratio:
             return True
 
         return False

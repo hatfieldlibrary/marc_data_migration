@@ -627,12 +627,12 @@ class RecordsModifier:
                             self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
                             modified_count += 1
 
-                        # When a perfect match is requested, write the imperfect OCLC matches to
-                        # a separate file. Those records for which the OCLC title match is a credible
-                        # Levenshtein ratio will have fields replaced with OCLC  values and labelled
-                        # as such. Those with less credible scores can be written to the file without
+                        # When a perfect match is requested, write records with imperfect OCLC matches to
+                        # a separate file. Records for which the OCLC title match is a credible
+                        # Levenshtein ratio will get fields replaced by OCLC  values and labelled
+                        # as such. Those with less credible scores will be written to the file without
                         # OCLC replacement fields and labelled as such. This file can be loaded separately
-                        # into the ILS institution zone so records can be reviewed before sharing to
+                        # into the ILS institution zone and records can be reviewed before sharing to
                         # the network zone.
                         elif oclc_response is not None and require_perfect_match:
 
@@ -640,6 +640,13 @@ class RecordsModifier:
 
                             field_generator = DataFieldGenerator()
 
+                            # Verify response, allowing for fuzzy matches.  The default Levenshtein
+                            # ratio is defined in the FuzzyMatcher class. Adjust it to increase
+                            # or decrease the number of records with OCLC replacement fields.
+                            # A case can be made for being inclusive since even records with very
+                            # low scores can be a match if the title format in the OCLC
+                            # record varies from the input file. See the  title_fuzzy_match audit
+                            # file for a summary match results.
                             if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
                                                           current_oclc_number, title_check, False):
                                 self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
