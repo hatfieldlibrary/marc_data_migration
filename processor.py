@@ -13,31 +13,33 @@ parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
                     help='Required: the path to the marc file to be processed')
-parser.add_argument('-db', '--use-database', metavar='database name', type=str,
-                    help='Postgres database name to be used instead of OCLC API')
 parser.add_argument('-r', '--replace-fields', action='store_true',
                     help='Replace fields with fields from the OCLC record.')
 parser.add_argument('-pm', '--perfect-match', action='store_true',
-                    help='If true a perfect OCLC title match will be required and lesser match ratios are'
-                         'written to separate output file.')
+                    help='Perfect OCLC title match will be required with lower fuzzy match'
+                         'ratios written to seperate files.')
+parser.add_argument('-db', '--use-database', metavar='database name', type=str,
+                    help='Postgres database name to use instead of the OCLC API')
 parser.add_argument('-di', '--database-insert', action='store_true',
-                    help='Insert record into database when replacing fields with OCLC API data. Requires --use-database flag with database name.')
+                    help='Insert record into database while replacing fields with OCLC API data. '
+                         'Requires --use-database flag with database name.')
 parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
-                    help='This utility retrieves OCLC records and compares oclc numbers in'
-                         'the response and the original input file. Logs the discrepancies for analysis.')
+                    help='Retrieve OCLC records and compare oclc numbers in'
+                         'the response and with the original input file. Logs any the discrepancies for analysis.')
 parser.add_argument('-nt', '--no-title-check', action='store_false',
-                    help='Skip the fuzzy title match on 245a before updating records')
+                    help='Skip the fuzzy title match on 245a before updating records. You probably do not want '
+                         'to do this')
 parser.add_argument("-t", "--track-fields", action="store_true",
-                    help="Create an audit log of modifed fields.")
+                    help="Create an audit log of modified fields.")
 parser.add_argument("-m", "--track-title-matches", action="store_true",
-                    help="Create a log of fuzzy title matches.")
+                    help="Create audit log of fuzzy title matches.")
 parser.add_argument("-so", "--save-oclc", action="store_true",
                     help="Save records from OCLC to local xml file during replacement task.")
 parser.add_argument('-oc', '--oclc-records', action='store_true',
-                    help='Only download marcxml for records with OCLC number, no other '
+                    help='Only download marcxml from OCLC number, no other '
                          'tasks performed.')
 parser.add_argument('-d', '--duplicates', action='store_true',
-                     help='Checks the source file for duplicate OCLC numbers in the database.')
+                     help='Checks for duplicate OCLC numbers in the database.')
 
 args = parser.parse_args()
 

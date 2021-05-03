@@ -4,7 +4,7 @@ Python modules created for migration of Pacific Northwest College of Art records
 Alma (Orbis-Cascade Alliance SLIS).
 
 ```
-usage: processor.py [-h] [-db database name] [-r] [-pm] [-di] [-comp] [-nt]
+usage: processor.py [-h] [-r] [-pm] [-db database name] [-di] [-comp] [-nt]
                     [-t] [-m] [-so] [-oc] [-d]
                     source
 
@@ -15,32 +15,31 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -db database name, --use-database database name
-                        Postgres database name to be used instead of OCLC API
   -r, --replace-fields  Replace fields with fields from the OCLC record.
-  -pm, --perfect-match  If true a perfect OCLC title match will be required
-                        and lesser match ratios arewritten to separate output
-                        file.
+  -pm, --perfect-match  Perfect OCLC title match will be required with lower
+                        fuzzy matchratios written to seperate files.
+  -db database name, --use-database database name
+                        Postgres database name to use instead of the OCLC API
   -di, --database-insert
-                        Insert record into database when replacing fields with
-                        OCLC API data. Requires --use-database flag with
+                        Insert record into database while replacing fields
+                        with OCLC API data. Requires --use-database flag with
                         database name.
   -comp, --compare_oclc_numbers
-                        This utility retrieves OCLC records and compares oclc
-                        numbers inthe response and the original input file.
-                        Logs the discrepancies for analysis.
+                        Retrieve OCLC records and compare oclc numbers inthe
+                        response and with the original input file. Logs any
+                        the discrepancies for analysis.
   -nt, --no-title-check
                         Skip the fuzzy title match on 245a before updating
-                        records
-  -t, --track-fields    Create an audit log of modifed fields.
+                        records. You probably do not want to do this
+  -t, --track-fields    Create an audit log of modified fields.
   -m, --track-title-matches
-                        Create a log of fuzzy title matches.
+                        Create audit log of fuzzy title matches.
   -so, --save-oclc      Save records from OCLC to local xml file during
                         replacement task.
-  -oc, --oclc-records   Only download marcxml for records with OCLC number, no
-                        other tasks performed.
-  -d, --duplicates      Checks the source file for duplicate OCLC numbers in
-                        the database.
-                                                
+  -oc, --oclc-records   Only download marcxml from OCLC number, no other tasks
+                        performed.
+  -d, --duplicates      Checks for duplicate OCLC numbers in the database.
+          
 Example:
+
 process.py --replace-fields --track-fields --track-title-matches /home/user/marcfile
