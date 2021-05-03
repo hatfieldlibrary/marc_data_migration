@@ -117,10 +117,9 @@ class RecordsModifier:
 
                     try:
                         if not record.title():
-                            print('record missing 245(a)')
+                            print('Record missing 245(a)')
                         if record['245'] and record['245']['a']:
                             title = utils.get_original_title(record)
-                        # Get values for 001 value, 035 value, and title.
                         if len(record.get_fields('001')) == 1:
                             field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                         if len(record.get_fields('035')) > 0:
