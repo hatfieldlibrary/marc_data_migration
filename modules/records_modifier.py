@@ -170,8 +170,8 @@ class RecordsModifier:
                         # Write to the OCLC record to file if file handle was provided.
                         if oclc_xml_writer is not None and oclc_response is not None:
                             oclc_xml_writer.write(str(ET.tostring(oclc_response,
-                                                                    encoding='utf8',
-                                                                    method='xml')))
+                                                                  encoding='utf8',
+                                                                  method='xml')))
 
                         # Modify records if input title matches that of the OCLC response.
                         #
@@ -311,7 +311,6 @@ class RecordsModifier:
         Gets value for the requested field text.
         :param field: field tag
         :param oclc_response: OCLC marcxml or root node
-        :param cursor: database cursor
         :return: field value
         '''
         oclc_field = self.__get_oclc_element_field(field, oclc_response)
