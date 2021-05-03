@@ -1,4 +1,4 @@
-import re
+
 import xml.etree.ElementTree as ET
 
 
@@ -13,4 +13,4 @@ class DatabaseUpdate:
                           method='xml')
 
         cursor.execute('INSERT INTO oclc (id, oclc_id, title, oclc)  VALUES (%s, %s, %s, %s)',
-                       (local_field, oclc_field.text, title, xml))
+                       (local_field, oclc_field, title, xml))
