@@ -279,13 +279,13 @@ class RecordsModifier:
             print('Failed OCLC record retrieval count: ' + str(self.failed_oclc_lookup_count))
 
     def __get_oclc_response(self, oclc_number, cursor, database_insert):
-        '''
+        """
         Retrieves the OCLC record from API or database
         :param oclc_number: record number
         :param cursor: database cursor
         :param database_insert: database insert task boolean
         :return: oclc response node
-        '''
+        """
         oclc_response = None
         if cursor is not None and not database_insert:
             cursor.execute("""SELECT oclc FROM oclc where id=%s""", [oclc_number])
@@ -300,12 +300,12 @@ class RecordsModifier:
         return oclc_response
 
     def __get_field_text(self, field, oclc_response):
-        '''
+        """
         Gets value for the requested field text.
         :param field: field tag
         :param oclc_response: OCLC marcxml or root node
         :return: field value
-        '''
+        """
         oclc_field = self.__get_oclc_element_field(field, oclc_response)
         if oclc_field is not None:
             return oclc_field.text
@@ -463,24 +463,24 @@ class RecordsModifier:
         record.add_ordered_field(field_003)
 
     def __replace_leader(self, record, oclc_reponse):
-        '''
+        """
         Replaces existing record leader with OCLC value
         :param record: The record pymarc root node
         :param oclc_reponse: the OCLC API response node
         :return:
-        '''
+        """
         oclc_leader = oclc_reponse.find('./', self.ns)
         new_leader = Leader(oclc_leader.text)
         if new_leader:
             record.leader = new_leader
 
     def __get_oclc_api_response(self, field_value):
-        '''
+        """
         Makes OCLC API request and tests for a valid response. Will attempt
         up to 3 requests before failing.
         :param field_value: the oclc number
         :return: oclc response node
-        '''
+        """
 
         oclc_response = self.connector.get_oclc_response(field_value, self.oclc_developer_key)
         oclc_field = oclc_response.find('./*[@tag="001"]')
@@ -502,13 +502,13 @@ class RecordsModifier:
         return oclc_response
 
     def __get_035_value(self, record, cancelled_oclc_writer):
-        '''
+        """
         Returns value of OCLC 035 field. Side effects are logging
         subfield z's and printing a notice when a duplicate 035(a)
         is encountered.
         :param record: record node
         :return: 035 value
-        '''
+        """
         field_035 = None
         if len(record.get_fields('035')) > 0:
             fields = record.get_fields('035')
@@ -523,16 +523,16 @@ class RecordsModifier:
 
     @staticmethod
     def __get_oclc_element_field(field, oclc_response):
-        '''
+        """
         Gets the field element from oclc response.
         :param field: the field to return
         :param oclc_response: the initial OCLC response (used if valid)
         :return: the OCLC field node
-        '''
+        """
         return oclc_response.find('./*[@tag="' + field + '"]')
 
     def __database_insert(self, cursor, conn, field, oclc_field, oclc_response, title):
-        '''
+        """
         Insert OCLC record into local database
         :param cursor: db cursor
         :param conn: database connection
@@ -541,7 +541,7 @@ class RecordsModifier:
         :param oclc_response: the OCLC xml reponse
         :param title: the item title
         :return:
-        '''
+        """
         if cursor is not None:
             try:
                 self.database_update.add_response(
@@ -558,14 +558,14 @@ class RecordsModifier:
             print('Missing database connection.')
 
     def replace_fields(self, oclc_001_value, record, substitutions, oclc_response):
-        '''
+        """
         Handles all OCLC field replacements
         :param oclc_001_value: the 001 value from OCLC
         :param record: the record node
         :param substitutions: the array of substitution tags
         :param oclc_response: the reponse from OCLC
         :return:
-        '''
+        """
         # Assure OCLC values are in 001 and 003. Alma load will generate 035.
         # Do this after title validation.
         if oclc_001_value:
