@@ -121,18 +121,12 @@ class RecordsModifier:
                         if record['245'] and record['245']['a']:
                             title = utils.get_original_title(record)
                         # Get values for 001 value, 035 value, and title.
-                        # These are used to request and verify data from OCLC.
                         if len(record.get_fields('001')) == 1:
                             field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                         if len(record.get_fields('035')) > 0:
-                            fields = record.get_fields('035')
-                            for field in fields:
-                                subfields = field.get_subfields('a')
-                                if len(subfields) > 1:
-                                    print('duplicate 035a')
-                                elif len(subfields) == 1:
-                                    field_035 = utils.get_oclc_035_value(subfields[0])
-                                    utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
+                            # Note: side effect of this method call is logging 035(z) subfields
+                            # using the cancelled_oclc_writer file handle.
+                            field_035 = self.__get_035_value(record, cancelled_oclc_writer)
 
                     except Exception as err:
                         print('error reading fields from input record.')
@@ -507,6 +501,26 @@ class RecordsModifier:
             oclc_response = None
 
         return oclc_response
+
+    def __get_035_value(self, record, cancelled_oclc_writer):
+        '''
+        Returns value of OCLC 035 field. Side effects are logging
+        subfield z's and printing a notice when a duplicate 035(a)
+        is encountered.
+        :param record: record node
+        :return: 035 value
+        '''
+        field_035 = None
+        if len(record.get_fields('035')) > 0:
+            fields = record.get_fields('035')
+            for field in fields:
+                subfields = field.get_subfields('a')
+                if len(subfields) > 1:
+                    print('duplicate 035a')
+                elif len(subfields) == 1:
+                    field_035 = utils.get_oclc_035_value(subfields[0])
+                    utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
+        return field_035
 
     @staticmethod
     def __get_oclc_element_field(field, oclc_response):
