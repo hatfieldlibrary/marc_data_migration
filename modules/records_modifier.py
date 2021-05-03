@@ -150,10 +150,11 @@ class RecordsModifier:
                         # the API or local database.
                         if input_oclc_number:
                             oclc_response = self.__get_oclc_response(input_oclc_number, cursor, database_insert)
-                            oclc_001_value = self.__get_field_text('001', oclc_response)
+                            if oclc_response is not None:
+                                oclc_001_value = self.__get_field_text('001', oclc_response)
 
                         # Log if the OCLC response does not include 001. This can happen
-                        # if we get an error diagnostic from the API. This should
+                        # if we get an error diagnostic from the API. It should
                         # quite rare since up to 3 requests are made.
                         if input_oclc_number and not oclc_001_value:
                             print('Missing oclc 001 for ' + input_oclc_number)
@@ -184,7 +185,8 @@ class RecordsModifier:
                         # in the matcher class. These records are written to the updated
                         # records output file.
                         #
-                        # Verification will always fail when the oclc_response is None.
+                        # Verification will fail when the oclc_response is None. The record
+                        # will be written to unmodified records file.
 
                         if utils.verify_oclc_response(oclc_response, title, None, record.title(),
                                                       input_oclc_number, title_check, require_perfect_match):
@@ -215,7 +217,7 @@ class RecordsModifier:
                             #
                             # When a record passes the verification step, add the corresponding 962 field
                             # label to the record.
-                            #
+
                             if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
                                                           input_oclc_number, title_check, False):
                                 field = field_generator.create_data_field('962', [0, 0],
@@ -290,7 +292,7 @@ class RecordsModifier:
         :param database_insert: database insert task boolean
         :return: oclc response node
         '''
-        print(oclc_number)
+        oclc_response = None
         if cursor is not None and not database_insert:
             cursor.execute("""SELECT oclc FROM oclc where id=%s""", [oclc_number])
             row = cursor.fetchone()
@@ -300,8 +302,7 @@ class RecordsModifier:
         # initial response returns diagnostic xml.
         else:
             oclc_response = self.__get_oclc_api_response(oclc_number)
-        if oclc_response is None:
-            print(oclc_number)
+
         return oclc_response
 
     def __get_field_text(self, field, oclc_response):
