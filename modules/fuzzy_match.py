@@ -51,8 +51,10 @@ class FuzzyMatcher:
         :param title_log_writer: fuzzy log file handle
         :return: true for match
         """
-        match_ratio = fuzz.ratio(value1, value2)
-
+        # token sort used for fuzzy output records.
+        # output is based on sorted tokens better handles variations in word order
+        # this seems to be a fairly common in 245 subfields
+        match_ratio = fuzz.token_sort_ratio(value1, value2)
         # Log all matches that are not exact.
         if match_ratio < 100:
             # Will be None if option not selected
@@ -90,5 +92,3 @@ class FuzzyMatcher:
 
         return False
 
-    # def get_ratio(self, value1, value2):
-    #     return fuzz.ratio(value1, value2)
