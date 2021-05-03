@@ -5,7 +5,8 @@ class FuzzyMatcher:
 
     default_ratio = 50
 
-    def __log_fuzzy_matches(self, orig1, orig2, value1, value2, match_ratio,
+    @staticmethod
+    def __log_fuzzy_matches(orig1, orig2, value1, value2, match_ratio,
                             ratio, current_oclc_number, title_log_writer):
         """
         Logs matches and match ratios.
