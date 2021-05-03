@@ -100,13 +100,11 @@ def get_oclc_node(oclc_response):
                 oclc_comparison_value += data_node2.text
             if data_node3 is not None:
                 full_oclc_title += data_node3.text
-                # oclc_comparison_value += data_node3.text
             if data_node4 is not None:
                 full_oclc_title += '(n: ' + data_node4.text + ')'
             if data_node5 is not None:
                 full_oclc_title += '(p: ' + data_node5.text + ')'
-            # full_oclc_title used in audit log; oclc_comparison_value
-            # used in match.
+            # full_oclc_title for audit log and oclc_comparison_value for match.
             return [full_oclc_title, oclc_comparison_value]
 
     except Exception as e:
@@ -124,17 +122,6 @@ def normalize_title(title):
     title1 = re.sub(end_of_line_substitution, '', title)
     title2 = re.sub(normalization, '', title1)
     return title2
-
-
-# def get_match_ratio(oclc_response, title):
-#     title_arr = get_oclc_node(oclc_response)
-#     if title_arr is not None:
-#         if len(title_arr) == 2:
-#             oclc_title = normalize_title(title_arr[1])
-#             pnca_title = normalize_title(title)
-#             return fuzz.get_ratio(pnca_title, oclc_title)
-#
-#     return None
 
 
 def verify_oclc_response(oclc_response, title, title_log_writer, input_title, current_oclc_number, title_check,
@@ -171,7 +158,7 @@ def verify_oclc_response(oclc_response, title, title_log_writer, input_title, cu
                     node_text = normalize_title(title_arr[1])
                     pnca_title = normalize_title(title)
                     if require_perfect_match:
-                        # This is using ratio=100 so a perfect match is required.
+                        # This is using ratio 100 so a perfect match is required.
                         return fuzz.find_match_with_ratio(pnca_title.lower(), node_text.lower(),
                                                           input_title, title_arr[0], 100, current_oclc_number,
                                                           title_log_writer)

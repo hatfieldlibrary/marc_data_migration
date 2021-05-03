@@ -475,7 +475,7 @@ class RecordsModifier:
         if require_perfect_match:
             dt = datetime.datetime.now()
             original_fuzzy_writer = TextWriter(
-                open('output/updated-records/original-records-with-fuzzy-match' + str(dt) + '.txt', 'w'))
+                open('output/updated-records/original-records-with-fuzzy-pretty-' + str(dt) + '.txt', 'w'))
 
 
         self.oclc_developer_key = oclc_developer_key
@@ -658,6 +658,8 @@ class RecordsModifier:
                             # Write the match ratios and their corresponding 962 field labels to the output file.
                             # Many records that "fail" will be valid but have greater variation between
                             # the titles in original and OCLC records.
+                            #
+                            # Verify does not require perfect match.
                             if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
                                                           current_oclc_number, title_check, False):
                                 field = field_generator.create_data_field('962', [0, 0],

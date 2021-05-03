@@ -54,7 +54,7 @@ database_name = args.use_database
 password = 'Sibale2'
 
 if args.compare_oclc_numbers:
-    writer = open('output/audit/oclc-number-comparison' + str(dt) + '.csv', 'w')
+    writer = open('output/audit/oclc-number-comparison-' + str(dt) + '.csv', 'w')
     compare = CompareOclcNumbers()
     compare.compare_oclc_numbers(source, writer, database_name, password)
 
