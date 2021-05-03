@@ -17,20 +17,22 @@ optional arguments:
   -h, --help            show this help message and exit
   -r, --replace-fields  Replace fields with fields from the OCLC record.
   -pm, --perfect-match  Perfect OCLC title match will be required with lower
-                        fuzzy matchratios written to seperate files.
+                        fuzzy match ratios written to seperate files.
   -db database name, --use-database database name
-                        Postgres database name to use instead of the OCLC API
+                        Provide name of the postgres database name to use
+                        instead of the OCLC API. This significantly speeds up
+                        processing.
   -di, --database-insert
-                        Insert record into database while replacing fields
+                        Insert records into database while replacing fields
                         with OCLC API data. Requires --use-database flag with
                         database name.
   -comp, --compare_oclc_numbers
-                        Retrieve OCLC records and compare oclc numbers inthe
+                        Retrieve OCLC records and compare oclc numbers in the
                         response and with the original input file. Logs any
                         the discrepancies for analysis.
   -nt, --no-title-check
                         Skip the fuzzy title match on 245a before updating
-                        records. You probably do not want to do this
+                        records. You probably do not want to do this.
   -t, --track-fields    Create an audit log of modified fields.
   -m, --track-title-matches
                         Create audit log of fuzzy title matches.
@@ -39,7 +41,8 @@ optional arguments:
   -oc, --oclc-records   Only download marcxml from OCLC number, no other tasks
                         performed.
   -d, --duplicates      Checks for duplicate OCLC numbers in the database.
-          
+  
+
 Example:
 
 process.py --replace-fields --track-fields --track-title-matches /home/user/marcfile

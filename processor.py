@@ -16,19 +16,20 @@ parser.add_argument('source', metavar='source', type=str,
 parser.add_argument('-r', '--replace-fields', action='store_true',
                     help='Replace fields with fields from the OCLC record.')
 parser.add_argument('-pm', '--perfect-match', action='store_true',
-                    help='Perfect OCLC title match will be required with lower fuzzy match'
+                    help='Perfect OCLC title match will be required with lower fuzzy match '
                          'ratios written to seperate files.')
 parser.add_argument('-db', '--use-database', metavar='database name', type=str,
-                    help='Postgres database name to use instead of the OCLC API')
+                    help='Provide name of the postgres database name to use instead of the OCLC API. '
+                         'This significantly speeds up processing.')
 parser.add_argument('-di', '--database-insert', action='store_true',
-                    help='Insert record into database while replacing fields with OCLC API data. '
+                    help='Insert records into database while replacing fields with OCLC API data. '
                          'Requires --use-database flag with database name.')
 parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
-                    help='Retrieve OCLC records and compare oclc numbers in'
+                    help='Retrieve OCLC records and compare oclc numbers in '
                          'the response and with the original input file. Logs any the discrepancies for analysis.')
 parser.add_argument('-nt', '--no-title-check', action='store_false',
                     help='Skip the fuzzy title match on 245a before updating records. You probably do not want '
-                         'to do this')
+                         'to do this.')
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modified fields.")
 parser.add_argument("-m", "--track-title-matches", action="store_true",
