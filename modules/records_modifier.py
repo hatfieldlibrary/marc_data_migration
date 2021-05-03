@@ -612,45 +612,48 @@ class RecordsModifier:
                                                                       encoding='utf8',
                                                                       method='xml')))
 
-                        # Modify records if match input title matches that of the OCLC response.
+                        # Modify records if input title matches that of the OCLC response.
                         #
                         # The "require_perfect_match" param indicates that a perfect match on
-                        # the 245(a)(b) fields is required for validation.
+                        # the 245(a)(b) fields is required for validation. Only perfect matches
+                        # are written to the updated records file.  Less perfect matches are
+                        # written to a separate file for review and labeled in the 962.
                         #
-                        # If the parameter is False, then field substitution will happen
-                        # whenever the similarity ratio is greater than the minimum value
-                        # defined in the matcher class.
+                        # If the parameter is False, field substitution will happen whenever
+                        # the similarity ratio is greater than the minimum value defined
+                        # in the matcher class. These records are written to the updated
+                        # records output file.
                         #
                         # Verification will always fail when the oclc_response is None.
-                        #
+
                         if utils.verify_oclc_response(oclc_response, title, None, record.title(),
                                                       current_oclc_number, title_check, require_perfect_match):
 
                             self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
                             modified_count += 1
 
-                        # When a perfect match is requested, records with an imperfect OCLC match are written
+                        # When a perfect match is requested, write records with an imperfect OCLC title match
                         # to a separate file. Records are labeled using the 962 field.
-                        #
+
                         elif oclc_response is not None and require_perfect_match:
 
                             field_generator = DataFieldGenerator()
 
-                            # First, write the original version of the record to a separate
-                            # output file so the original is available to the reviewer if needed.
+                            # Write the original version of the record to a separate output
+                            # file so the original copy is available to the reviewer.
                             original_fuzzy_writer.write(record)
 
                             # Next, replace fields with OCLC data.
                             self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
 
-                            # Next, verify the OCLC response with allowance for fuzzy matches.  The minimum
-                            # matching ratio is defined in the FuzzyMatcher class. Adjust the ratio to increase
-                            # or decrease the number of records that pass.
+                            # Now verify the OCLC response with allowance for fuzzy matches.  The minimum
+                            # match ratio is defined in the FuzzyMatcher class. Adjust the ratio to increase
+                            # or decrease the number of records that "pass".
                             #
                             # The matcher uses token sorting to help limit failures that result from
                             # order differences in the 255(a)(b) subfields.
                             #
-                            # For records that pass the verification stop, add the corresponding 962 field
+                            # When a record passes the verification step, add the corresponding 962 field
                             # label to the record.
                             #
                             if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
@@ -662,10 +665,10 @@ class RecordsModifier:
                                 fuzzy_record_count += 1
                                 modified_count += 1
 
-                            # For records that to not meet the title match threshold, add the corresponding 962 field
-                            # label to the record. Many records that "fail" will be valid OCLC matches. This
-                            # label allows the reviewer to see those with the greatest title variance between records.
-                            #
+                            # For records that to not meet the title threshold, add the corresponding 962 field
+                            # label to the record. Many records that "fail" will be valid OCLC responses. This
+                            # label allows the reviewer to review records with the greatest title variance.
+
                             else:
                                 field = field_generator.create_data_field('962', [0, 0],
                                                                           'a', 'fuzzy-match-failed')
@@ -675,7 +678,7 @@ class RecordsModifier:
                                 unmodified_count += 1
 
                         # For records with no OCLC response, write to a separate file and continue.
-                        #
+
                         else:
                             unmodified_writer.write(record)
                             unmodified_count += 1
