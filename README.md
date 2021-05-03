@@ -4,8 +4,8 @@ Python modules created for migration of Pacific Northwest College of Art records
 Alma (Orbis-Cascade Alliance SLIS).
 
 ```
-usage: processor.py [-h] [-db database name] [-r] [-comp] [-nt] [-t] [-m]
-                    [-so] [-oc] [-d]
+usage: processor.py [-h] [-db database name] [-r] [-pm] [-di] [-comp] [-nt]
+                    [-t] [-m] [-so] [-oc] [-d]
                     source
 
 Process marc records.
@@ -18,6 +18,13 @@ optional arguments:
   -db database name, --use-database database name
                         Postgres database name to be used instead of OCLC API
   -r, --replace-fields  Replace fields with fields from the OCLC record.
+  -pm, --perfect-match  If true a perfect OCLC title match will be required
+                        and lesser match ratios arewritten to separate output
+                        file.
+  -di, --database-insert
+                        Insert record into database when replacing fields with
+                        OCLC API data. Requires --use-database flag with
+                        database name.
   -comp, --compare_oclc_numbers
                         This utility retrieves OCLC records and compares oclc
                         numbers inthe response and the original input file.
@@ -30,10 +37,10 @@ optional arguments:
                         Create a log of fuzzy title matches.
   -so, --save-oclc      Save records from OCLC to local xml file during
                         replacement task.
-  -oc, --oclc-records   Only download marcxml for all records with OCLC
-                        number, no other tasks performed.
+  -oc, --oclc-records   Only download marcxml for records with OCLC number, no
+                        other tasks performed.
   -d, --duplicates      Checks the source file for duplicate OCLC numbers in
                         the database.
-                        
+                                                
 Example:
 process.py --replace-fields --track-fields --track-title-matches /home/user/marcfile
