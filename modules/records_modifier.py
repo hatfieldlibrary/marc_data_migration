@@ -113,6 +113,7 @@ class RecordsModifier:
                     field_035 = None
                     input_oclc_number = None
                     oclc_001_value = None
+                    oclc_response = None
                     title = ''
 
                     try:
@@ -124,7 +125,7 @@ class RecordsModifier:
                             field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                         if len(record.get_fields('035')) > 0:
                             # Note: side effect of this method call is logging 035(z) subfields
-                            # using the cancelled_oclc_writer file handle.
+                            # to the cancelled_oclc_writer file handle.
                             field_035 = self.__get_035_value(record, cancelled_oclc_writer)
 
                     except Exception as err:
@@ -132,7 +133,6 @@ class RecordsModifier:
                         print(err)
 
                     try:
-                        oclc_response = None
                         # Use 001 by default.
                         if field_001:
                             input_oclc_number = field_001
@@ -143,22 +143,26 @@ class RecordsModifier:
                         # the API or local database.
                         if input_oclc_number:
                             oclc_response = self.__get_oclc_response(input_oclc_number, cursor, database_insert)
-                            if oclc_response is not None:
-                                oclc_001_value = self.__get_field_text('001', oclc_response)
 
-                        # Log if the OCLC response does not include 001. This can happen
-                        # if we get an error diagnostic from the API. It should
-                        # quite rare since up to 3 requests are made.
-                        if input_oclc_number and not oclc_001_value:
-                            print('Missing oclc 001 for ' + input_oclc_number)
-                            if bad_oclc_reponse_writer:
-                                bad_oclc_reponse_writer.write(ET.tostring(oclc_response,
-                                                                          encoding='utf8',
-                                                                          method='xml'))
-                        # Add record to database if requested.
-                        if input_oclc_number and database_insert:
-                            self.__database_insert(cursor, conn, input_oclc_number, oclc_001_value, oclc_response,
-                                                   title)
+                        if oclc_response is not None:
+                            oclc_001_value = self.__get_field_text('001', oclc_response)
+                            # Log if the OCLC response does not include 001. This can happen
+                            # if we get an error diagnostic from the API. That should
+                            # quite rare since up to 3 requests are made. The error
+                            # to expect is file not found.
+                            if input_oclc_number and not oclc_001_value:
+                                print('Missing oclc 001 for ' + input_oclc_number)
+                                if bad_oclc_reponse_writer:
+                                    bad_oclc_reponse_writer.write(ET.tostring(oclc_response,
+                                                                              encoding='utf8',
+                                                                              method='xml'))
+                            # Add record to database if requested.
+                            if input_oclc_number and database_insert:
+                                self.__database_insert(cursor,
+                                                       conn,
+                                                       input_oclc_number,
+                                                       oclc_001_value,
+                                                       oclc_response, title)
 
                         # Write to the OCLC record to file if file handle was provided.
                         if oclc_xml_writer is not None and oclc_response is not None:
@@ -292,9 +296,9 @@ class RecordsModifier:
             row = cursor.fetchone()
             if row:
                 oclc_response = ET.fromstring(row[0])
-        # This will make multiple API requests if
-        # initial response returns diagnostic xml.
         else:
+            # This will make multiple API requests if
+            # initial response returns diagnostic xml.
             oclc_response = self.__get_oclc_api_response(oclc_number)
 
         return oclc_response
@@ -310,6 +314,18 @@ class RecordsModifier:
         if oclc_field is not None:
             return oclc_field.text
 
+        return None
+
+    @staticmethod
+    def __get_oclc_element_field(field, oclc_response):
+        """
+        Gets the field element from oclc response.
+        :param field: the field to return
+        :param oclc_response: the initial OCLC response (used if valid)
+        :return: the OCLC field node
+        """
+        if oclc_response is not None:
+            return oclc_response.find('./*[@tag="' + field + '"]')
         return None
 
     @staticmethod
@@ -501,7 +517,8 @@ class RecordsModifier:
 
         return oclc_response
 
-    def __get_035_value(self, record, cancelled_oclc_writer):
+    @staticmethod
+    def __get_035_value(record, cancelled_oclc_writer):
         """
         Returns value of OCLC 035 field. Side effects are logging
         subfield z's and printing a notice when a duplicate 035(a)
@@ -520,16 +537,6 @@ class RecordsModifier:
                     field_035 = utils.get_oclc_035_value(subfields[0])
                     utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
         return field_035
-
-    @staticmethod
-    def __get_oclc_element_field(field, oclc_response):
-        """
-        Gets the field element from oclc response.
-        :param field: the field to return
-        :param oclc_response: the initial OCLC response (used if valid)
-        :return: the OCLC field node
-        """
-        return oclc_response.find('./*[@tag="' + field + '"]')
 
     def __database_insert(self, cursor, conn, field, oclc_field, oclc_response, title):
         """
