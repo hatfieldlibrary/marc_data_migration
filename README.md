@@ -56,37 +56,52 @@ local fields that will be maintained after Alma ingest.
 When the `--replace-fields` argument is provided, the OCLC API will be queried (an OCLC developer key is required). 
 The utility will  update any field in the `substitutions` list with corresponding data from the OCLC record.
 
-Using the API is time-consuming. Running with the `--database-name` and `--database-insert` arguments will insert OCLC 
-data into a postgres database table. Subsequent executions will run against the database when the `--database-name` 
-argument is provided. Highly recommended if you need to do this more than one time!
+Using the OCLC API is time-consuming. Running with the `--database-name` and `--database-insert` arguments will insert
+OCLC  data into a postgres database table. Subsequent executions will run against the database when the  
+`--database-name` argument is provided. Highly recommended if you need to do this more than one time!
+
+Updated records are output to `updated-records`.  Unmodified records are written to `unmodified-records`.
+
+# Matching Records
+
+When the `--perfect-match` argument is provided, only records with a perfect match on the OCLC 245(a)(b) subfields
+are written to the `updated-records` file. Otherwise, the utility uses a fuzzy match algorithm and writes
+any record that meets the threshold requirement to `updated-records`.  An audit file can be used to assess the
+accuracy of fuzzy record matching.
+
+If you do use the `--perfect-match` option, updated records with imperfect matches on 245(a)(b) are
+written to `fuzzy-modified-records`. These records can be immediately reviewed, or loaded separately into
+the Alma Institution Zone and reviewed as part of a cleanup project. A `fuzzy-match-passed` or `fuzzy-match-failed`
+label is added to the local 962 field to make that work easier. (Note that records failing the fuzzy match threshold
+are often valid matches because of variations in cataloging.)
 
 # Output Files
 
-##updated-records
+## updated-records
 Records that are updated with OCLC data.
 
-##unmodified-records
+## unmodified-records
 Original input records that are not updated with OCLC data.
 
-##bad-records
+## bad-records
 Records that could not be processed by pymarc, typically because of errors in the original marc record.
 
-##fuzzy-modified-records
+## fuzzy-modified-records
 Records that have been updated with OCLC data without an exact match on the 245 fields. See audit log.
 
-##fuzzy-original-records
+## fuzzy-original-records
 The original input records for comparison with fuzzy-modified-records.
 
 # Audit files
 
-##title-fuzzy-match
+## title-fuzzy-match
 A tab-delimited text file with information on fuzzy match records: original title, oclc title, titles normalized for 
 comparison, fuzzy match ratio, pass/fail result,  oclc number. 
 
-##fields_audit
+## fields_audit
 A tab-delimited file with all field replacements: oclc number, tag, new value, original value.
 
-#OCLC XML
+# OCLC XML
 
 ## oclc
 When the --save-oclc argument is used, marcxml written to this file.
