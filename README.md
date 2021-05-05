@@ -86,7 +86,7 @@ comparison, fuzzy match ratio, pass/fail result,  oclc number.
 ## fields_audit
 A tab-delimited file with all field replacements: oclc number, tag, new value, original value.
 
-#OCLC XML
+# OCLC XML
 
 ## oclc
 When the --save-oclc argument is used, marcxml written to this file.
