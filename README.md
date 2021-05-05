@@ -62,28 +62,28 @@ argument is provided. Highly recommended if you need to do this more than one ti
 
 # Output Files
 
-##updated-records
+## updated-records
 Records that are updated with OCLC data.
 
-##unmodified-records
+## unmodified-records
 Original input records that are not updated with OCLC data.
 
-##bad-records
-Records that could not be processed by pymarc, typically because of errors in the original marc record.
+## bad-records
+Records that could not be processed by pymarc because of errors in the original marc record.
 
-##fuzzy-modified-records
+## fuzzy-modified-records
 Records that have been updated with OCLC data without an exact match on the 245 fields. See audit log.
 
-##fuzzy-original-records
+## fuzzy-original-records
 The original input records for comparison with fuzzy-modified-records.
 
 # Audit files
 
-##title-fuzzy-match
+## title-fuzzy-match
 A tab-delimited text file with information on fuzzy match records: original title, oclc title, titles normalized for 
 comparison, fuzzy match ratio, pass/fail result,  oclc number. 
 
-##fields_audit
+## fields_audit
 A tab-delimited file with all field replacements: oclc number, tag, new value, original value.
 
 #OCLC XML
