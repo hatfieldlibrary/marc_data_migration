@@ -77,7 +77,7 @@ class RecordsModifier:
         if require_perfect_match:
             dt = datetime.datetime.now()
             original_fuzzy_writer = TextWriter(
-                open('output/updated-records/original-records-with-fuzzy-pretty-' + str(dt) + '.txt', 'w'))
+                open('output/updated-records/fuzzy-original-records-pretty-' + str(dt) + '.txt', 'w'))
 
         self.oclc_developer_key = oclc_developer_key
 
@@ -364,7 +364,7 @@ class RecordsModifier:
     def __write_to_audit_log(self, replacement_field, original_fields, field, control_field, writer):
         """
         Writes field replacements to audit log.
-        :param replacement_field: name of the replacement field
+        :param replacement_field: replacement field tag
         :param original_fields: fields from original marc record
         :param field: current pymarc Field
         :param control_field: value of the record 001 or the record title varying with data and control field contexts.
@@ -372,6 +372,7 @@ class RecordsModifier:
         :return:
         """
         for single_field in self.__get_original_values(original_fields):
+            # Output order: oclc#, tag, new field value, original field value.
             writer.write(control_field + '\t'
                          + replacement_field + '\t'
                          + field.value() + '\t'
@@ -421,10 +422,13 @@ class RecordsModifier:
         :param oclc_response: the OCLC XML response
         """
         field_generator = DataFieldGenerator()
+        # get the replacement fields from OCLC response
         tags = oclc_response.findall('.//*[@tag="' + replacement_field_tag + '"]', self.ns)
         if len(tags) > 0:
+            # get the replacement fields from the original record for adding to audit file.
             original_fields = record.get_fields(replacement_field_tag)
             field_001 = record['001'].value()
+            # remove replacement fields from the original record
             self.__remove_fields(replacement_field_tag, record)
             for f in tags:
                 field = field_generator.get_data_field(f, f.attrib, replacement_field_tag)
@@ -432,8 +436,11 @@ class RecordsModifier:
                     if self.field_audit_writer:
                         self.__write_to_audit_log(replacement_field_tag, original_fields, field,
                                                   field_001, self.field_audit_writer)
+                    # add new field with OCLC data to record
                     record.add_ordered_field(field)
         else:
+            # this moves fields within the record.
+            # TODO: move this to it's own method and add move field configuration to avoid hard-coding.
             if replacement_field_tag == '505':
                 self.__conditional_move(record, replacement_field_tag, oclc_response)
 

@@ -91,7 +91,7 @@ if args.replace_fields:
     unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # fuzzy field match records
-    fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-records-pretty-' + str(dt) + '.txt', 'w'))
+    fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-modified-records-pretty-' + str(dt) + '.txt', 'w'))
 
 
     # Write unreadable records to binary file.
@@ -102,11 +102,11 @@ if args.replace_fields:
     field_substitution_audit_writer = None
     input_marc_xml = None
 
-    cancelled_log_writer = open('output/audit/cancelled-oclc-' + str(dt) + '.csv', 'w')
+    cancelled_log_writer = open('output/audit/cancelled-oclc-' + str(dt) + '.txt', 'w')
 
     # optional report on fuzzy title matching for most current OCLC harvest
     if args.track_title_matches:
-        title_log_writer = open('output/audit/title_fuzzy_match-' + str(dt) + '.csv', 'w')
+        title_log_writer = open('output/audit/title-fuzzy-match-' + str(dt) + '.txt', 'w')
 
     # optional marcxml file for most current OCLC harvest
     if args.save_oclc:
@@ -114,7 +114,7 @@ if args.replace_fields:
 
     # optional field replacement audit for most current OCLC harvest
     if args.track_fields:
-        field_substitution_audit_writer = open('output/audit/fields_audit-' + str(dt) + '.txt', 'w')
+        field_substitution_audit_writer = open('output/audit/fields-audit-' + str(dt) + '.txt', 'w')
 
 
     # Fields to be replaced if found in the OCLC record.

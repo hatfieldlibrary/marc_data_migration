@@ -45,4 +45,48 @@ optional arguments:
 
 Example:
 
-process.py --replace-fields --track-fields --track-title-matches /home/user/marcfile
+process.py --replace-fields --track-fields --track-title-matches /home/user/marcfile 
+```
+
+This utility was written to correct several problems in records that were exported from the Alexandria ILS.
+These problems included bad character encoding and invalid control fields. The primary goal is to prepare records
+for addition to the Alma (ExLibris) Network Zone. This utility can also move existing data to
+local fields that will be maintained after Alma ingest. 
+
+When the `--replace-fields` argument is provided, the OCLC API will be queried (an OCLC developer key is required). 
+The utility will  update any field in the `substitutions` list with corresponding data from the OCLC record.
+
+Using the API is time-consuming. Running with the `--database-name` and `--database-insert` arguments will insert OCLC 
+data into a postgres database table. Subsequent executions will run against the database when the `--database-name` 
+argument is provided. Highly recommended if you need to do this more than one time!
+
+# Output Files
+
+##updated-records
+Records that are updated with OCLC data.
+
+##unmodified-records
+Original input records that are not updated with OCLC data.
+
+##bad-records
+Records that could not be processed by pymarc, typically because of errors in the original marc record.
+
+##fuzzy-modified-records
+Records that have been updated with OCLC data without an exact match on the 245 fields. See audit log.
+
+##fuzzy-original-records
+The original input records for comparison with fuzzy-modified-records.
+
+# Audit files
+
+##title-fuzzy-match
+A tab-delimited text file with information on fuzzy match records: original title, oclc title, titles normalized for 
+comparison, fuzzy match ratio, pass/fail result,  oclc number. 
+
+##fields_audit
+A tab-delimited file with all field replacements: oclc number, tag, new value, original value.
+
+#OCLC XML
+
+## oclc
+When the --save-oclc argument is used, marcxml written to this file.
