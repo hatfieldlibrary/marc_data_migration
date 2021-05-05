@@ -48,13 +48,14 @@ Example:
 process.py --replace-fields --track-fields --track-title-matches /home/user/marcfile 
 ```
 
-This utility was written to correct several problems in records that were exported from the Alexandria ILS.
-These problems included bad character encoding and invalid control fields. The primary goal is to prepare records
-for addition to the Alma (ExLibris) Network Zone. This utility can also move existing data to
-local fields that will be maintained after Alma ingest. 
+This utility is written to correct problems in records that were exported from the Alexandria ILS.
+These problems included bad character encoding and invalid control fields. 
+
+The primary requirement for the utility is preparing records for addition to the Alma (ExLibris) Network Zone.
+This utility also moves existing data to local fields that will be maintained after Alma ingest. 
 
 When the `--replace-fields` argument is provided, the OCLC API will be queried (an OCLC developer key is required). 
-The utility will  update any field in the `substitutions` list with corresponding data from the OCLC record.
+The utility will update any field in the `substitutions` list with corresponding data from the OCLC record.
 
 Using the OCLC API is time-consuming. Running with the `--database-name` and `--database-insert` arguments will insert
 OCLC  data into a postgres database table. Subsequent executions will run against the database when the  
