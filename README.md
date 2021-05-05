@@ -51,28 +51,28 @@ process.py --replace-fields --track-fields --track-title-matches /home/user/marc
 This utility is written to correct problems in records that were exported from the Alexandria ILS.
 These problems included bad character encoding and invalid control fields. 
 
-The primary requirement for the utility is preparing records for addition to the Alma (ExLibris) Network Zone.
+The primary goal is preparing records for addition to the Alma (ExLibris) _Network Zone_.
 This utility also moves existing data to local fields that will be maintained after Alma ingest. 
 
-When the `--replace-fields` argument is provided, the OCLC API will be queried (an OCLC developer key is required). 
+When the `--replace-fields` argument is provided, the OCLC API is queried (an OCLC developer key is required). 
 The utility will update any field in the `substitutions` list with corresponding data from the OCLC record.
 
 Using the OCLC API is time-consuming. Running with the `--database-name` and `--database-insert` arguments will insert
-OCLC  data into a postgres database table. Subsequent executions will run against the database when the  
-`--database-name` argument is provided. Highly recommended if you need to do this more than one time!
+OCLC  data into a postgres database table. Subsequent executions will run against the database 
+when the `--database-name` argument is provided. Highly recommended if you need to do this more than one time!
 
 Updated records are output to `updated-records`.  Unmodified records are written to `unmodified-records`.
 
 # Matching Records
 
-When the `--perfect-match` argument is provided, only records with a perfect match on the OCLC 245(a)(b) subfields
-are written to the `updated-records` file. Otherwise, the utility uses a fuzzy match algorithm and writes
-any record that meets the threshold requirement to `updated-records`.  An audit file can be used to assess the
+When the `--perfect-match` argument is used, only records with a perfect match on the OCLC 245(a)(b) subfields
+are written to the `updated-records` file. Otherwise, the utility uses a fuzzy match algorithm. It writes
+any record that meets the fuzzy match threshold requirement to `updated-records`.  An audit file can be used to assess the
 accuracy of fuzzy record matching.
 
-If you do use the `--perfect-match` option, updated records with imperfect matches on 245(a)(b) are
+If you use the `--perfect-match` option, updated records with **imperfect matches** on 245(a)(b) are
 written to `fuzzy-modified-records`. These records can be immediately reviewed, or loaded separately into
-the Alma Institution Zone and reviewed as part of a cleanup project. A `fuzzy-match-passed` or `fuzzy-match-failed`
+the Alma _Institution Zone_ and reviewed as part of a cleanup project. A `fuzzy-match-passed` or `fuzzy-match-failed`
 label is added to the local 962 field to make that work easier. (Note that records failing the fuzzy match threshold
 are often valid matches because of variations in cataloging.)
 
