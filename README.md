@@ -84,7 +84,7 @@ Records that are updated with OCLC data.
 Original input records that are not updated with OCLC data.
 
 ## bad-records
-Records that could not be processed by pymarc, typically because of errors in the original marc record.
+Records that could not be processed by pymarc because of errors in the original marc record.
 
 ## fuzzy-modified-records
 Records that have been updated with OCLC data without an exact match on the 245 fields. See audit log.
