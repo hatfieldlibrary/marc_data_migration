@@ -16,8 +16,8 @@ parser.add_argument('source', metavar='source', type=str,
 parser.add_argument('-r', '--replace-fields', action='store_true',
                     help='Replace fields with fields from the OCLC record.')
 parser.add_argument('-pm', '--perfect-match', action='store_true',
-                    help='Perfect OCLC title match will be required with lower fuzzy match '
-                         'ratios written to seperate files.')
+                    help='Perfect OCLC title match will be required; records with lower fuzzy match '
+                         'ratios are written to a separate file.')
 parser.add_argument('-db', '--use-database', metavar='database name', type=str,
                     help='Provide name of the postgres database name to use instead of the OCLC API. '
                          'This significantly speeds up processing.')
@@ -26,16 +26,16 @@ parser.add_argument('-di', '--database-insert', action='store_true',
                          'Requires --use-database flag with database name.')
 parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
                     help='Retrieve OCLC records and compare oclc numbers in '
-                         'the response and with the original input file. Logs any the discrepancies for analysis.')
+                         'the response and with the original input file. Logs the discrepancies for analysis.')
 parser.add_argument('-nt', '--no-title-check', action='store_false',
-                    help='Skip the fuzzy title match on 245a before updating records. You probably do not want '
+                    help='Skip the fuzzy title match on 245 fields before updating records. You probably do not want '
                          'to do this.')
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modified fields.")
 parser.add_argument("-m", "--track-title-matches", action="store_true",
                     help="Create audit log of fuzzy title matches.")
 parser.add_argument("-so", "--save-oclc", action="store_true",
-                    help="Save records from OCLC to local xml file during replacement task.")
+                    help="Save records from OCLC to local xml file during while running the replacement task.")
 parser.add_argument('-oc', '--oclc-records', action='store_true',
                     help='Only download marcxml from OCLC number, no other '
                          'tasks performed.')
