@@ -70,12 +70,15 @@ class RecordsModifier:
 
         self.field_audit_writer = field_audit_writer
 
+        dt = datetime.datetime.now()
+
+        missing_required_field_writer = TextWriter(
+            open('output/audit/records-with-missing-field-pretty-' + str(dt) + '.txt', 'w'))
+
         if database_insert:
-            dt = datetime.datetime.now()
             bad_oclc_reponse_writer = open('output/xml/bad-oclc-response-' + str(dt) + '.xml', 'w')
 
         if require_perfect_match:
-            dt = datetime.datetime.now()
             original_fuzzy_writer = TextWriter(
                 open('output/updated-records/fuzzy-original-records-pretty-' + str(dt) + '.txt', 'w'))
 
@@ -119,6 +122,7 @@ class RecordsModifier:
                     try:
                         if not record.title():
                             print('Record missing 245(a)')
+                            missing_required_field_writer.write(record)
                         if record['245'] and record['245']['a']:
                             title = utils.get_original_title(record)
                         if len(record.get_fields('001')) == 1:
@@ -164,18 +168,18 @@ class RecordsModifier:
                                                        oclc_001_value,
                                                        oclc_response, title)
 
-                        # Write to the OCLC record to file if file handle was provided.
-                        if oclc_xml_writer is not None and oclc_response is not None:
-                            oclc_xml_writer.write(str(ET.tostring(oclc_response,
-                                                                  encoding='utf8',
-                                                                  method='xml')))
+                            # Write to the OCLC record to file if file handle was provided.
+                            if oclc_xml_writer is not None:
+                                oclc_xml_writer.write(str(ET.tostring(oclc_response,
+                                                                    encoding='utf8',
+                                                                    method='xml')))
 
                         # Modify records if input title matches that of the OCLC response.
                         #
-                        # If "require_perfect_match" is true, validation executes an exact comparison
+                        # If "require_perfect_match" is True, validation checks for an exact match
                         # on the 245(a)(b) fields. Only exact matches are written to the
-                        # updated records file.  Less perfect (fuzzy) matches are written to a
-                        # separate file for review and labeled in the 962.
+                        # updated records file.  Imperfect (fuzzy) matches are written to a
+                        # separate file labeled in the 962 for review.
                         #
                         # If the "require_perfect_match" parameter is False, field substitution
                         # will take place when the similarity ratio is greater than the minimum value
@@ -189,9 +193,10 @@ class RecordsModifier:
                                                       input_oclc_number, title_check, require_perfect_match):
 
                             self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
+                            # Update count.
                             modified_count += 1
 
-                        # When "require_perfect_match" is True, substitutions will take place for records
+                        # When "require_perfect_match" is True make substitutions for records
                         # with an imperfect OCLC title match. These records will be written to a
                         # separate file. Records will be labeled using the 962 field.
 
@@ -222,8 +227,6 @@ class RecordsModifier:
                                                                           'a', 'fuzzy-match-passed')
                                 record.add_ordered_field(field)
                                 fuzzy_record_writer.write(record)
-                                fuzzy_record_count += 1
-                                modified_count += 1
 
                             # For records that to not meet the title threshold, add the corresponding 962 field
                             # label to the record. Many records that "fail" will be valid OCLC responses. This
@@ -234,8 +237,10 @@ class RecordsModifier:
                                                                           'a', 'fuzzy-match-failed')
                                 record.add_ordered_field(field)
                                 fuzzy_record_writer.write(record)
-                                fuzzy_record_count += 1
-                                unmodified_count += 1
+
+                            # Update counts.
+                            fuzzy_record_count += 1
+                            modified_count += 1
 
                         # For records with no OCLC response, write to a separate file and continue.
 
