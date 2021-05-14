@@ -43,6 +43,9 @@ class RecordsModifier:
                                  oclc_xml_writer,
                                  field_audit_writer,
                                  fuzzy_record_writer,
+                                 updated_online_writer,
+                                 unmodified_online_writer,
+                                 fuzzy_online_writer,
                                  cancelled_oclc_writer,
                                  oclc_developer_key):
         """
@@ -62,6 +65,10 @@ class RecordsModifier:
         :param title_log_writer: The output title for fuzzy matched titles
         :param oclc_xml_writer: The output file for OCLC xml
         :param field_audit_writer: The output file tracking field updates
+        :param fuzzy_record_writer: Output pretty records with fuzzy OCLC title match
+        :param updated_online_writer: Output pretty records for updated online items
+        :param unmodified_online_writer: Output pretty records for unmodified online items
+        :param fuzzy_online_writer: Output pretty records for fuzzy online items
         :param fuzzy_record_writer: Output pretty records with fuzzy OCLC title match
         :param cancelled_oclc_writer: Outputs 035(z) audit
         :param oclc_developer_key: The developer key used to query OCLC
@@ -118,6 +125,12 @@ class RecordsModifier:
                     oclc_001_value = None
                     oclc_response = None
                     title = ''
+
+                    # Records to online titles should have "o" in position
+                    # 23 of the 008 field.  These records have been updated
+                    # by PNCA, so writing them to separate file without
+                    # modification.
+                    is_online = self.__is_online(record)
 
                     try:
                         if not record.title():
@@ -195,6 +208,8 @@ class RecordsModifier:
                             self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
                             # Update count.
                             modified_count += 1
+                            if is_online:
+                                updated_online_writer.write(record)
 
                         # When "require_perfect_match" is True make substitutions for records
                         # with an imperfect OCLC title match. These records will be written to a
@@ -227,6 +242,8 @@ class RecordsModifier:
                                                                           'a', 'fuzzy-match-passed')
                                 record.add_ordered_field(field)
                                 fuzzy_record_writer.write(record)
+                                if is_online:
+                                    fuzzy_online_writer.write(record)
 
                             # For records that to not meet the title threshold, add the corresponding 962 field
                             # label to the record. Many records that "fail" will be valid OCLC responses. This
@@ -237,6 +254,8 @@ class RecordsModifier:
                                                                           'a', 'fuzzy-match-failed')
                                 record.add_ordered_field(field)
                                 fuzzy_record_writer.write(record)
+                                if is_online:
+                                    fuzzy_online_writer.write(record)
 
                             # Update counts.
                             fuzzy_record_count += 1
@@ -247,6 +266,8 @@ class RecordsModifier:
                         else:
                             unmodified_writer.write(record)
                             unmodified_count += 1
+                            if is_online:
+                                unmodified_online_writer.write(record)
 
                     except HTTPError as err:
                         print(err)
@@ -332,6 +353,15 @@ class RecordsModifier:
         if oclc_response is not None:
             return oclc_response.find('./*[@tag="' + field + '"]')
         return None
+
+    @staticmethod
+    def __is_online(record):
+        field_900 = record.get_fields('900')
+        field_value = field_900[0].value()
+        if field_value:
+            if field_value.find('STREAMING VIDEO') > -1:
+                return True
+        return False
 
     @staticmethod
     def __remove_fields(field, record):
