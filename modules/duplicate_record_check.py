@@ -20,41 +20,45 @@ class CheckDuplicates:
         cursor.execute('''SELECT id from oclc where id=%s''', [field])
         return cursor.fetchall()
 
-    def check_duplicates(self, input, database_name, password, writer):
+    def check_duplicates(self, input_records, database_name, password, writer):
         db_connect = DatabaseConnector()
         conn = db_connect.get_connection(database_name, password)
         print("Database opened successfully")
         cursor = conn.cursor()
-        with open(input, 'rb') as fh:
+        with open(input_records, 'rb') as fh:
 
             reader = MARCReader(fh, permissive=True, utf8_handling='ignore')
 
             for record in reader:
-                field_001 = None
-                field_035 = None
-                try:
-                    if len(record.get_fields('001')) == 1:
-                        field_001 = utils.get_oclc_001_value(record['001'], record['003'])
-                    elif len(record.get_fields('035')) > 0:
-                        fields = record.get_fields('035')
-                        for field in fields:
-                            subfields = field.get_subfields('a')
-                            if len(subfields) > 1:
-                                print('duplicate 035a')
-                            elif len(subfields) == 1:
-                                field_035 = utils.get_oclc_035_value(subfields[0])
+                if record:
+                    field_001 = None
+                    field_035 = None
+                    try:
+                        if len(record.get_fields('001')) == 1:
+                            field_001 = utils.get_oclc_001_value(record['001'], record['003'])
+                        elif len(record.get_fields('035')) > 0:
+                            fields = record.get_fields('035')
+                            for field in fields:
+                                subfields = field.get_subfields('a')
+                                if len(subfields) > 1:
+                                    print('duplicate 035a')
+                                elif len(subfields) == 1:
+                                    field_035 = utils.get_oclc_035_value(subfields[0])
 
-                except Exception as err:
-                    print('error reading fields from input record.')
-                    print(err)
+                    except Exception as err:
+                        print('error reading fields from input record.')
+                        print(err)
 
-                if field_001:
-                    tuples = self.__query_db(cursor, field_001)
-                    self.__write_dups(tuples, field_001, writer)
-                elif field_035:
-                    tuples = self.__query_db(cursor, field_035)
-                    self.__write_dups(tuples, field_035, writer)
+                    if field_001:
+                        tuples = self.__query_db(cursor, field_001)
+                        self.__write_dups(tuples, field_001, writer)
+                    elif field_035:
+                        tuples = self.__query_db(cursor, field_035)
+                        self.__write_dups(tuples, field_035, writer)
+                else:
+                    print(reader.current_exception)
+                    print(reader.current_chunk)
 
-        cursor.close()
-        conn.close()
+            cursor.close()
+            conn.close()
 
