@@ -87,12 +87,20 @@ if args.replace_fields:
     # updated records
     updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty-' + str(dt) + '.txt', 'w'))
 
+    # online item records
+    updated_online_writer = TextWriter(open('output/updated-records/updated-online-pretty-' + str(dt) + '.txt', 'w'))
+
     # unmodified records
     unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty-' + str(dt) + '.txt', 'w'))
+
+    # unmodified online item records
+    unmodified_online_writer = TextWriter(open('output/updated-records/unmodified-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # fuzzy field match records
     fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-modified-records-pretty-' + str(dt) + '.txt', 'w'))
 
+    # fuzzy online item records
+    fuzzy_online_writer = TextWriter(open('output/updated-records/fuzzy-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # Write unreadable records to binary file.
     bad_records_writer = open('output/updated-records/bad-records-pretty-' + str(dt) + '.txt', 'wb')
@@ -174,8 +182,6 @@ if args.replace_fields:
         '850'
     ]
 
-    # title_log_writer.write('original\toclc\ttest 1\ttest 2\tratio\tstatus\n\n')
-
     modifier = RecordsModifier()
 
     t = args.no_title_check
@@ -194,6 +200,9 @@ if args.replace_fields:
                                       oclc_xml_writer,
                                       field_substitution_audit_writer,
                                       fuzzy_records_writer,
+                                      updated_online_writer,
+                                      unmodified_online_writer,
+                                      fuzzy_online_writer,
                                       cancelled_log_writer,
                                       oclc_developer_key)
 
