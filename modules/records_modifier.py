@@ -5,6 +5,7 @@ from pymarc import MARCReader, Field, Leader, TextWriter
 
 from modules.add_response_to_database import DatabaseUpdate
 from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
+from modules.location_mapping import LocationMapper
 from modules.oclc_connector import OclcConnector
 from db_connector import DatabaseConnector
 import modules.utils as utils
@@ -25,6 +26,10 @@ class RecordsModifier:
     updated_001_count = 0
     updated_003_count = 0
     updated_leader_count = 0
+
+    ebook_count = 0
+    online_periodical_count = 0
+    streaming_video_count = 0
 
     field_audit_writer = None
 
@@ -121,6 +126,7 @@ class RecordsModifier:
                 if record:
                     field_001 = None
                     field_035 = None
+                    location = None
                     input_oclc_number = None
                     oclc_001_value = None
                     oclc_response = None
@@ -145,6 +151,19 @@ class RecordsModifier:
                             # to the cancelled_oclc_writer file handle.
                             field_035 = self.__get_035_value(record, cancelled_oclc_writer)
 
+                        location_mapper = LocationMapper()
+                        call_number = self.__get_call_number(record)
+                        if not call_number:
+                            if field_001 is not None:
+                                print('Missing call number for: ' + field_001)
+                            elif field_035 is not None:
+                                print('Missing call number for: ' + field_035)
+                        else:
+                            location = location_mapper.get_location(call_number)
+                            self.__add_location_to_record(record, location)
+
+
+
                     except Exception as err:
                         print('error reading fields from input record.')
                         print(err)
@@ -155,6 +174,8 @@ class RecordsModifier:
                             input_oclc_number = field_001
                         elif field_035:
                             input_oclc_number = field_035
+
+
 
                         # If input record includes an OCLC number retrieve record from
                         # the API or local database.
@@ -305,8 +326,16 @@ class RecordsModifier:
 
         print('Total fields replaced: ' + str(field_c))
         print()
+
         if database_insert:
             print('Failed OCLC record retrieval count: ' + str(self.failed_oclc_lookup_count))
+        print()
+
+        print('Ebook record count: ' + str(self.ebook_count))
+        print('Online periodical record count: ' + str(self.online_periodical_count))
+        print('Streaming video record count: ' + str(self.streaming_video_count))
+        total_electronic_records = self.streaming_video_count + self.ebook_count + self.online_periodical_count
+        print('Total electronic records: ' + str(total_electronic_records))
 
     def __get_oclc_response(self, oclc_number, cursor, database_insert):
         """
@@ -342,6 +371,17 @@ class RecordsModifier:
 
         return None
 
+    def __add_location_to_record(self, record, location):
+        if len(record.get_fields('852')) > 0:
+            try:
+                fields = record.get_fields('852')
+                fields[0].add_subfield('b', location, 1)
+                record.remove_fields('852')
+                record.add_ordered_field(fields[0])
+            except Exception as err:
+                print('Error adding location to record.')
+                print(err)
+
     @staticmethod
     def __get_oclc_element_field(field, oclc_response):
         """
@@ -354,13 +394,30 @@ class RecordsModifier:
             return oclc_response.find('./*[@tag="' + field + '"]')
         return None
 
-    @staticmethod
-    def __is_online(record):
+    def __is_online(self, record):
+        """
+        The hook for electronic records in our current
+        input data is the 900 field.
+        :param record: a pymarc record
+        :return: True if record is electronic
+        """
         field_900 = record.get_fields('900')
-        field_value = field_900[0].value()
-        if field_value:
-            if field_value.find('STREAMING VIDEO') > -1:
-                return True
+        # There can be multiple fields
+        for field in field_900:
+            subfield = field.get_subfields('a')
+            # inspect subfield "a"
+            if len(subfield) > 0:
+                field_value = subfield[0]
+                if field_value:
+                    if field_value.find('STREAMING VIDEO') > -1:
+                        self.streaming_video_count += 1
+                        return True
+                    if field_value.find('EBOOK') > -1:
+                        self.ebook_count += 1
+                        return True
+                    if field_value.find('ONLINE PERIODICAL') > -1:
+                        self.online_periodical_count += 1
+                        return True
         return False
 
     @staticmethod
@@ -579,6 +636,22 @@ class RecordsModifier:
                     field_035 = utils.get_oclc_035_value(subfields[0])
                     utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
         return field_035
+
+    @staticmethod
+    def __get_call_number(record):
+        """
+        Returns value of OCLC 090 field.
+        :param record: record node
+        :return: call number
+        """
+        call_number = None
+        if len(record.get_fields('852')) > 0:
+            fields = record.get_fields('852')
+            for field in fields:
+                subfields = field.get_subfields('h')
+                if len(subfields) == 1:
+                    call_number = subfields[0]
+        return call_number
 
     def __database_insert(self, cursor, conn, field, oclc_field, oclc_response, title):
         """
