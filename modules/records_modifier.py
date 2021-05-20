@@ -424,7 +424,7 @@ class RecordsModifier:
         :param record: pymarc record
         :return:
         """
-        fields = ['590', '690', '852', '900', '918', '921', '994', '998', '936']
+        fields = ['590', '690', '852', '900', '918', '921', '930', '994', '998', '936', '991']
         for field in fields:
             for rec_field in record.get_fields(field):
                 rec_field.add_subfield('9', 'local')
