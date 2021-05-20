@@ -508,37 +508,63 @@ class RecordsModifier:
         field_count.update_field_count(replacement_field)
 
     @staticmethod
-    def __conditional_move(record, replacement_field_tag, oclc_response):
-        # Move the existing 505(a) to 590 when no replacement value was
-        # provided by OCLC
-        if replacement_field_tag == '505':
-            # Test to see if replacement 505 was provided in OCLC record.
-            # If not, move field in the current record to preserve in local
-            # 590 field.
-            oclc_field = oclc_response.find('./*[@tag="505"]')
-            if oclc_field is None:
-                field_505s = record.get_fields('505')
-                # found 505 in original record
-                if len(field_505s) > 0:
-                    # capture the single 505 field
-                    field_505 = field_505s[0]
-                    # clear existing record field
-                    record.remove_fields('505')
-                    # indicators from record field
-                    indicators = [field_505.indicator1, field_505.indicator2]
-                    subfield_505 = field_505.get_subfields('a')
-                    # subfield a from record
-                    if len(subfield_505) == 1:
-                        subfields = ['a', subfield_505[0]]
-                        # create new 590 with data from the 505
-                        field = Field(
-                            tag='590',
-                            indicators=indicators,
-                            subfields=subfields
-                        )
-                        # add 590 to record
-                        record.add_ordered_field(field)
-                        field_count.update_field_count('590')
+    def __move_field(record, current_field_tag, new_field_tag):
+        """
+        Moves field to a new field in the record. Used
+        to preserve local fields during ingest.
+        :param record: pymar record
+        :param current_field_tag: tag of the current field
+        :param new_field_tag: tag of the target field
+        :return:
+        """
+        fields = record.get_fields(current_field_tag)
+        for field in fields:
+            sub_fields = field.subfields_as_dict()
+            target_field = Field(
+                tag=new_field_tag,
+                indicators=[field.indicator1, field.indicator2],
+                subfields=sub_fields
+            )
+            record.remove_field(field)
+            record.add_ordered_field(target_field)
+            field_count.update_field_count(new_field_tag)
+
+    @staticmethod
+    def __conditional_move_field(record, replacement_field_tag, target_field_tag, oclc_response):
+        """
+        Conditionally moves field to a new field in the record. Used
+        to preserve 505 field during ingest when no replacement is
+        provided by OCLC.
+        :param record: pymarc record
+        :param replacement_field_tag: tag of the field to move
+        :param target_field_tag: tag of the new field
+        :param oclc_response: the OCLC marcxml response
+        :return:
+        """
+        # Test to see if replacement was provided in OCLC record.
+        # If not, move field in the current record to preserve in data
+        # in a localfield.
+        oclc_field = oclc_response.find('./*[@tag="' + replacement_field_tag + '"]')
+        if oclc_field is None:
+            fields = record.get_fields(replacement_field_tag)
+            for field in fields:
+                sub_fields = field.subfields_as_dict()
+                keys = sub_fields.keys()
+                subs_new = []
+                for key in keys:
+                    subs_list = sub_fields[key]
+                    for val in subs_list:
+                        subs_new.append(key)
+                        subs_new.append(val)
+
+                target_field = Field(
+                    tag=target_field_tag,
+                    indicators=[field.indicator1, field.indicator2],
+                    subfields=subs_new
+                )
+                record.remove_field(field)
+                record.add_ordered_field(target_field)
+                field_count.update_field_count(target_field_tag)
 
     def __data_field_update(self, record, replacement_field_tag, oclc_response):
         """
@@ -569,7 +595,9 @@ class RecordsModifier:
             # this moves fields within the record.
             # TODO: move this to it's own method and add move field configuration to avoid hard-coding.
             if replacement_field_tag == '505':
-                self.__conditional_move(record, replacement_field_tag, oclc_response)
+                self.__conditional_move_field(record, replacement_field_tag, '590', oclc_response)
+            if replacement_field_tag == '500':
+                self.__conditional_move_field(record, replacement_field_tag, '591', oclc_response)
 
     def __control_field_update(self, record, replacement_field, oclc_response):
         """
@@ -831,6 +859,9 @@ class RecordsModifier:
         if '490' in substitutions:
             self.__data_field_update(record, '490',
                                      oclc_response)
+        if '500' in substitutions:
+            self.__data_field_update(record, '500',
+                                         oclc_response)
         if '505' in substitutions:
             self.__data_field_update(record, '505',
                                      oclc_response)
