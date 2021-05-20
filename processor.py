@@ -97,10 +97,10 @@ if args.replace_fields:
     unmodified_online_writer = TextWriter(open('output/updated-records/unmodified-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # fuzzy field match records
-    fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-modified-records-pretty-' + str(dt) + '.txt', 'w'))
+    fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-updated-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # fuzzy online item records
-    fuzzy_online_writer = TextWriter(open('output/updated-records/fuzzy-online-pretty-' + str(dt) + '.txt', 'w'))
+    fuzzy_online_writer = TextWriter(open('output/updated-records/fuzzy-updated-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # Write unreadable records to binary file.
     bad_records_writer = open('output/updated-records/bad-records-pretty-' + str(dt) + '.txt', 'wb')
@@ -153,6 +153,7 @@ if args.replace_fields:
         '362',
         '386',
         '490',
+        '500',
         '505',
         '510',
         '511',

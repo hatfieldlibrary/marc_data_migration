@@ -41,11 +41,14 @@ class LocationMapper:
         'spec': 'pspecial',
         'archive': 'parchives',
 
-        'cds-placeholder': 'pcds',
-        'mezzover': 'pmezzover'
+        '1st Floor CDs': 'pcds',
+        'OVERSIZE PERIODICALS': 'pmezzover'
     }
 
-    def get_location(self, call_number):
+    def get_location(self, temp_location):
+        return self.mapping[temp_location]
+
+    def get_location_by_callnumber(self, call_number):
         key = self.get_key(call_number)
         location = self.mapping[key]
         return location

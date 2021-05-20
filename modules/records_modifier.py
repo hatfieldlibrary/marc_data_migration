@@ -109,7 +109,7 @@ class RecordsModifier:
             # provided the OCLC API will be used.
             db_connect = DatabaseConnector()
             conn = db_connect.get_connection(database_name, password)
-            print("Database opened successfully")
+            print("Database opened successfully.")
             cursor = conn.cursor()
 
         with open(file, 'rb') as fh:
@@ -152,17 +152,21 @@ class RecordsModifier:
                             field_035 = self.__get_035_value(record, cancelled_oclc_writer)
 
                         location_mapper = LocationMapper()
-                        call_number = self.__get_call_number(record)
-                        if not call_number:
-                            if field_001 is not None:
-                                print('Missing call number for: ' + field_001)
-                            elif field_035 is not None:
-                                print('Missing call number for: ' + field_035)
+                        location_field = self.__get_852b(record)
+
+                        if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
+                            location = location_mapper.get_location(location_field)
+                            self.__replace_location(record, location)
                         else:
-                            location = location_mapper.get_location(call_number)
-                            self.__add_location_to_record(record, location)
-
-
+                            call_number = self.__get_call_number(record)
+                            if not call_number:
+                                if field_001 is not None:
+                                    print('Missing call number for: ' + field_001)
+                                elif field_035 is not None:
+                                    print('Missing call number for: ' + field_035)
+                            else:
+                                location = location_mapper.get_location_by_callnumber(call_number)
+                                self.__add_location_to_record(record, location)
 
                     except Exception as err:
                         print('error reading fields from input record.')
@@ -175,7 +179,7 @@ class RecordsModifier:
                         elif field_035:
                             input_oclc_number = field_035
 
-
+                        self.__add_local_field_note(record)
 
                         # If input record includes an OCLC number retrieve record from
                         # the API or local database.
@@ -231,6 +235,8 @@ class RecordsModifier:
                             modified_count += 1
                             if is_online:
                                 updated_online_writer.write(record)
+                            else:
+                                writer.write(record)
 
                         # When "require_perfect_match" is True make substitutions for records
                         # with an imperfect OCLC title match. These records will be written to a
@@ -262,9 +268,11 @@ class RecordsModifier:
                                 field = field_generator.create_data_field('962', [0, 0],
                                                                           'a', 'fuzzy-match-passed')
                                 record.add_ordered_field(field)
-                                fuzzy_record_writer.write(record)
+
                                 if is_online:
                                     fuzzy_online_writer.write(record)
+                                else:
+                                    fuzzy_record_writer.write(record)
 
                             # For records that to not meet the title threshold, add the corresponding 962 field
                             # label to the record. Many records that "fail" will be valid OCLC responses. This
@@ -274,9 +282,10 @@ class RecordsModifier:
                                 field = field_generator.create_data_field('962', [0, 0],
                                                                           'a', 'fuzzy-match-failed')
                                 record.add_ordered_field(field)
-                                fuzzy_record_writer.write(record)
                                 if is_online:
                                     fuzzy_online_writer.write(record)
+                                else:
+                                    fuzzy_record_writer.write(record)
 
                             # Update counts.
                             fuzzy_record_count += 1
@@ -285,17 +294,16 @@ class RecordsModifier:
                         # For records with no OCLC response, write to a separate file and continue.
 
                         else:
-                            unmodified_writer.write(record)
                             unmodified_count += 1
                             if is_online:
                                 unmodified_online_writer.write(record)
+                            else:
+                                unmodified_writer.write(record)
 
                     except HTTPError as err:
                         print(err)
                     except UnicodeEncodeError as err:
                         print(err)
-
-                    writer.write(record)
 
                 else:
                     bad_record_count += 1
@@ -371,7 +379,21 @@ class RecordsModifier:
 
         return None
 
-    def __add_location_to_record(self, record, location):
+    @staticmethod
+    def __replace_location(record, location):
+        if len(record.get_fields('852')) > 0:
+            try:
+                fields = record.get_fields('852')
+                fields[0].delete_subfield('b')
+                fields[0].add_subfield('b', location, 1)
+                record.remove_fields('852')
+                record.add_ordered_field(fields[0])
+            except Exception as err:
+                print('Error replacing location in record.')
+                print(err)
+
+    @staticmethod
+    def __add_location_to_record(record, location):
         if len(record.get_fields('852')) > 0:
             try:
                 fields = record.get_fields('852')
@@ -393,6 +415,19 @@ class RecordsModifier:
         if oclc_response is not None:
             return oclc_response.find('./*[@tag="' + field + '"]')
         return None
+
+    @staticmethod
+    def __add_local_field_note(record):
+        """
+        Alma NZ will preserve local fields when they are
+        labelled with subfield 9 equal to 'local'.
+        :param record: pymarc record
+        :return:
+        """
+        fields = ['590', '690', '852', '900', '918', '921', '994', '998', '936']
+        for field in fields:
+            for rec_field in record.get_fields(field):
+                rec_field.add_subfield('9', 'local')
 
     def __is_online(self, record):
         """
@@ -636,6 +671,17 @@ class RecordsModifier:
                     field_035 = utils.get_oclc_035_value(subfields[0])
                     utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
         return field_035
+
+    @staticmethod
+    def __get_852b(record):
+        location_field = None
+        if len(record.get_fields('852')) > 0:
+            fields = record.get_fields('852')
+            for field in fields:
+                subfields = field.get_subfields('b')
+                if len(subfields) == 1:
+                    location_field = subfields[0]
+        return location_field
 
     @staticmethod
     def __get_call_number(record):
