@@ -5,8 +5,8 @@ from pymarc import MARCReader, Field, Leader, TextWriter
 
 from modules.add_response_to_database import DatabaseUpdate
 from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
-from modules.location_mapping import LocationMapper
 from modules.oclc_connector import OclcConnector
+from modules.pnca_local import PncaLocalModification
 from db_connector import DatabaseConnector
 import modules.utils as utils
 import modules.field_replacement_count as field_count
@@ -31,6 +31,8 @@ class RecordsModifier:
     online_periodical_count = 0
     streaming_video_count = 0
 
+    replacement_strategy = None
+
     field_audit_writer = None
 
     def update_fields_using_oclc(self,
@@ -52,7 +54,8 @@ class RecordsModifier:
                                  unmodified_online_writer,
                                  fuzzy_online_writer,
                                  cancelled_oclc_writer,
-                                 oclc_developer_key):
+                                 oclc_developer_key,
+                                 replacement_strategy='replace_and_add'):
         """
         Updates records from input marc file with data obtained
         from OCLC worldcat.  The method takes a substitutions array
@@ -77,8 +80,13 @@ class RecordsModifier:
         :param fuzzy_record_writer: Output pretty records with fuzzy OCLC title match
         :param cancelled_oclc_writer: Outputs 035(z) audit
         :param oclc_developer_key: The developer key used to query OCLC
+        :param replacement_strategy: strategy used for OCLC replacement values, default is replace_and_add
         :return:
         """
+
+        self.replacement_strategy = replacement_strategy
+
+        print('Using replacement strategy: ' + self.replacement_strategy)
 
         self.field_audit_writer = field_audit_writer
 
@@ -89,6 +97,8 @@ class RecordsModifier:
 
         if database_insert:
             bad_oclc_reponse_writer = open('output/xml/bad-oclc-response-' + str(dt) + '.xml', 'w')
+        else:
+            bad_oclc_reponse_writer = None
 
         if require_perfect_match:
             original_fuzzy_writer = TextWriter(
@@ -105,8 +115,7 @@ class RecordsModifier:
         conn = None
         cursor = None
         if database_name:
-            # If database provided, initialize the connection and get cursor. If not
-            # provided the OCLC API will be used.
+            # If database provided, initialize the connection and get cursor.
             db_connect = DatabaseConnector()
             conn = db_connect.get_connection(database_name, password)
             print("Database opened successfully.")
@@ -126,17 +135,10 @@ class RecordsModifier:
                 if record:
                     field_001 = None
                     field_035 = None
-                    location = None
                     input_oclc_number = None
                     oclc_001_value = None
                     oclc_response = None
                     title = ''
-
-                    # Records to online titles should have "o" in position
-                    # 23 of the 008 field.  These records have been updated
-                    # by PNCA, so writing them to separate file without
-                    # modification.
-                    is_online = self.__is_online(record)
 
                     try:
                         if not record.title():
@@ -151,29 +153,21 @@ class RecordsModifier:
                             # to the cancelled_oclc_writer file handle.
                             field_035 = self.__get_035_value(record, cancelled_oclc_writer)
 
-                        location_mapper = LocationMapper()
-                        location_field = self.__get_852b(record)
-
-                        if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
-                            location = location_mapper.get_location(location_field)
-                            self.__replace_location(record, location)
-                        else:
-                            call_number = self.__get_call_number(record)
-                            if not call_number:
-                                if field_001 is not None:
-                                    print('Missing call number for: ' + field_001)
-                                elif field_035 is not None:
-                                    print('Missing call number for: ' + field_035)
-                            else:
-                                location = location_mapper.get_location_by_callnumber(call_number)
-                                self.__add_location_to_record(record, location)
-
                     except Exception as err:
                         print('error reading fields from input record.')
                         print(err)
 
+                    # The idiosyncratic PNCA stuff.
+                    pnca_stuff = PncaLocalModification()
+                    is_online = pnca_stuff.is_online(record)
+                    if field_001 is not None:
+                        pnca_stuff.add_location(record, field_001)
+                    else:
+                        pnca_stuff.add_location(record, field_035)
+                    pnca_stuff.add_inventory(record)
+                    pnca_stuff.add_funds(record)
+
                     try:
-                        # Use 001 by default.
                         if field_001:
                             input_oclc_number = field_001
                         elif field_035:
@@ -209,8 +203,8 @@ class RecordsModifier:
                             # Write to the OCLC record to file if file handle was provided.
                             if oclc_xml_writer is not None:
                                 oclc_xml_writer.write(str(ET.tostring(oclc_response,
-                                                                    encoding='utf8',
-                                                                    method='xml')))
+                                                                      encoding='utf8',
+                                                                      method='xml')))
 
                         # Modify records if input title matches that of the OCLC response.
                         #
@@ -231,8 +225,9 @@ class RecordsModifier:
                                                       input_oclc_number, title_check, require_perfect_match):
 
                             self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
-                            # Update count.
+
                             modified_count += 1
+
                             if is_online:
                                 updated_online_writer.write(record)
                             else:
@@ -282,12 +277,12 @@ class RecordsModifier:
                                 field = field_generator.create_data_field('962', [0, 0],
                                                                           'a', 'fuzzy-match-failed')
                                 record.add_ordered_field(field)
+
                                 if is_online:
                                     fuzzy_online_writer.write(record)
                                 else:
                                     fuzzy_record_writer.write(record)
 
-                            # Update counts.
                             fuzzy_record_count += 1
                             modified_count += 1
 
@@ -295,6 +290,9 @@ class RecordsModifier:
 
                         else:
                             unmodified_count += 1
+                            self.__move_field(record, '500', '591')
+                            self.__move_field(record, '505', '590')
+
                             if is_online:
                                 unmodified_online_writer.write(record)
                             else:
@@ -305,11 +303,11 @@ class RecordsModifier:
                     except UnicodeEncodeError as err:
                         print(err)
 
-                else:
-                    bad_record_count += 1
-                    print(reader.current_exception)
-                    print(reader.current_chunk)
-                    bad_writer.write(reader.current_chunk)
+            else:
+                bad_record_count += 1
+                print(reader.current_exception)
+                print(reader.current_chunk)
+                bad_writer.write(reader.current_chunk)
 
         if oclc_xml_writer is not None:
             oclc_xml_writer.write('</collection>')
@@ -334,16 +332,10 @@ class RecordsModifier:
 
         print('Total fields replaced: ' + str(field_c))
         print()
-
         if database_insert:
             print('Failed OCLC record retrieval count: ' + str(self.failed_oclc_lookup_count))
         print()
-
-        print('Ebook record count: ' + str(self.ebook_count))
-        print('Online periodical record count: ' + str(self.online_periodical_count))
-        print('Streaming video record count: ' + str(self.streaming_video_count))
-        total_electronic_records = self.streaming_video_count + self.ebook_count + self.online_periodical_count
-        print('Total electronic records: ' + str(total_electronic_records))
+        pnca_stuff.print_online_record_counts()
 
     def __get_oclc_response(self, oclc_number, cursor, database_insert):
         """
@@ -380,31 +372,6 @@ class RecordsModifier:
         return None
 
     @staticmethod
-    def __replace_location(record, location):
-        if len(record.get_fields('852')) > 0:
-            try:
-                fields = record.get_fields('852')
-                fields[0].delete_subfield('b')
-                fields[0].add_subfield('b', location, 1)
-                record.remove_fields('852')
-                record.add_ordered_field(fields[0])
-            except Exception as err:
-                print('Error replacing location in record.')
-                print(err)
-
-    @staticmethod
-    def __add_location_to_record(record, location):
-        if len(record.get_fields('852')) > 0:
-            try:
-                fields = record.get_fields('852')
-                fields[0].add_subfield('b', location, 1)
-                record.remove_fields('852')
-                record.add_ordered_field(fields[0])
-            except Exception as err:
-                print('Error adding location to record.')
-                print(err)
-
-    @staticmethod
     def __get_oclc_element_field(field, oclc_response):
         """
         Gets the field element from oclc response.
@@ -416,53 +383,26 @@ class RecordsModifier:
             return oclc_response.find('./*[@tag="' + field + '"]')
         return None
 
-    @staticmethod
-    def __add_local_field_note(record):
+    def __add_local_field_note(self, record):
         """
         Alma NZ will preserve local fields when they are
         labelled with subfield 9 equal to 'local'.
         :param record: pymarc record
         :return:
         """
-        fields = ['590', '690', '852', '900', '918', '921', '930', '994', '998', '936', '991']
+        pnca_stuff = PncaLocalModification()
+        # List of PNCA local fields to preserve is kept here.
+        fields = pnca_stuff.get_local_fields()
         for field in fields:
             for rec_field in record.get_fields(field):
                 rec_field.add_subfield('9', 'local')
 
-    def __is_online(self, record):
-        """
-        The hook for electronic records in our current
-        input data is the 900 field.
-        :param record: a pymarc record
-        :return: True if record is electronic
-        """
-        field_900 = record.get_fields('900')
-        # There can be multiple fields
-        for field in field_900:
-            subfield = field.get_subfields('a')
-            # inspect subfield "a"
-            if len(subfield) > 0:
-                field_value = subfield[0]
-                if field_value:
-                    if field_value.find('STREAMING VIDEO') > -1:
-                        self.streaming_video_count += 1
-                        return True
-                    if field_value.find('EBOOK') > -1:
-                        self.ebook_count += 1
-                        return True
-                    if field_value.find('ONLINE PERIODICAL') > -1:
-                        self.online_periodical_count += 1
-                        return True
-        return False
-
     @staticmethod
-    def __remove_fields(field, record):
+    def __remove_field(field, record):
         """
-        Removes field, first checking for 1xx an removing
-        all 1xx fields on match.  The OCLC record may include
-        a different 1xx than the original file, so this is
-        necessary. This method is called after a successful
-        OCLC data fetch and before OCLC data is added to the
+        Removes field. If the field is a 1xx, removes all variants.
+        This method is called after a successful OCLC data
+        fetch and before OCLC data is added to the
         record.
 
         :param field: current field
@@ -499,7 +439,7 @@ class RecordsModifier:
         :return:
         """
         for single_field in self.__get_original_values(original_fields):
-            # Output order: oclc#, tag, new field value, original field value.
+            # Output order: oclc #, tag, new field value, original field value.
             writer.write(control_field + '\t'
                          + replacement_field + '\t'
                          + field.value() + '\t'
@@ -507,8 +447,7 @@ class RecordsModifier:
 
         field_count.update_field_count(replacement_field)
 
-    @staticmethod
-    def __move_field(record, current_field_tag, new_field_tag):
+    def __move_field(self, record, current_field_tag, new_field_tag):
         """
         Moves field to a new field in the record. Used
         to preserve local fields during ingest.
@@ -517,20 +456,9 @@ class RecordsModifier:
         :param new_field_tag: tag of the target field
         :return:
         """
-        fields = record.get_fields(current_field_tag)
-        for field in fields:
-            sub_fields = field.subfields_as_dict()
-            target_field = Field(
-                tag=new_field_tag,
-                indicators=[field.indicator1, field.indicator2],
-                subfields=sub_fields
-            )
-            record.remove_field(field)
-            record.add_ordered_field(target_field)
-            field_count.update_field_count(new_field_tag)
+        self.__update_field_in_record(record, current_field_tag, new_field_tag)
 
-    @staticmethod
-    def __conditional_move_field(record, replacement_field_tag, target_field_tag, oclc_response):
+    def __conditional_move_field(self, record, replacement_field_tag, target_field_tag, oclc_response):
         """
         Conditionally moves field to a new field in the record. Used
         to preserve 505 field during ingest when no replacement is
@@ -541,30 +469,26 @@ class RecordsModifier:
         :param oclc_response: the OCLC marcxml response
         :return:
         """
-        # Test to see if replacement was provided in OCLC record.
-        # If not, move field in the current record to preserve in data
-        # in a localfield.
+        # Test to see if replacement data was provided in the OCLC record.
+        # If not, move the field in the current record to preserve in information
+        # in a local field.
         oclc_field = oclc_response.find('./*[@tag="' + replacement_field_tag + '"]')
         if oclc_field is None:
-            fields = record.get_fields(replacement_field_tag)
-            for field in fields:
-                sub_fields = field.subfields_as_dict()
-                keys = sub_fields.keys()
-                subs_new = []
-                for key in keys:
-                    subs_list = sub_fields[key]
-                    for val in subs_list:
-                        subs_new.append(key)
-                        subs_new.append(val)
+            self.__update_field_in_record(record, replacement_field_tag, target_field_tag)
 
-                target_field = Field(
-                    tag=target_field_tag,
-                    indicators=[field.indicator1, field.indicator2],
-                    subfields=subs_new
-                )
-                record.remove_field(field)
-                record.add_ordered_field(target_field)
-                field_count.update_field_count(target_field_tag)
+    @staticmethod
+    def __update_field_in_record(record, origin_field_tag, target_field_tag):
+        fields = record.get_fields(origin_field_tag)
+        for field in fields:
+            subs = utils.get_subfields_arr(field)
+            target_field = Field(
+                tag=target_field_tag,
+                indicators=[field.indicator1, field.indicator2],
+                subfields=subs
+            )
+            record.remove_field(field)
+            record.add_ordered_field(target_field)
+            field_count.update_field_count(target_field_tag)
 
     def __data_field_update(self, record, replacement_field_tag, oclc_response):
         """
@@ -582,7 +506,7 @@ class RecordsModifier:
             original_fields = record.get_fields(replacement_field_tag)
             field_001 = record['001'].value()
             # remove replacement fields from the original record
-            self.__remove_fields(replacement_field_tag, record)
+            self.__remove_field(replacement_field_tag, record)
             for f in tags:
                 field = field_generator.get_data_field(f, f.attrib, replacement_field_tag)
                 if field:
@@ -592,14 +516,13 @@ class RecordsModifier:
                     # add new field with OCLC data to record
                     record.add_ordered_field(field)
         else:
-            # this moves fields within the record.
-            # TODO: move this to it's own method and add move field configuration to avoid hard-coding.
+            # When no OCLC field is found for these fields, do a conditional move to a local field.
             if replacement_field_tag == '505':
                 self.__conditional_move_field(record, replacement_field_tag, '590', oclc_response)
             if replacement_field_tag == '500':
                 self.__conditional_move_field(record, replacement_field_tag, '591', oclc_response)
 
-    def __control_field_update(self, record, replacement_field, oclc_response):
+    def __replace_control_field(self, record, replacement_field, oclc_response):
         """
         Updates the record control fields using OCLC XML response.
 
@@ -620,7 +543,7 @@ class RecordsModifier:
             record.add_ordered_field(field)
 
     @staticmethod
-    def __add_oclc_001_003(record, oclc_number):
+    def __replace_oclc_001_003(record, oclc_number):
         """
         Add 001 and 003 fields to a record. Use to guarantee this
         information is in every record.
@@ -659,7 +582,6 @@ class RecordsModifier:
         :param field_value: the oclc number
         :return: oclc response node
         """
-
         oclc_response = self.connector.get_oclc_response(field_value, self.oclc_developer_key)
         oclc_field = oclc_response.find('./*[@tag="001"]')
         # API returns occasional error. Second attempt
@@ -700,33 +622,6 @@ class RecordsModifier:
                     utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
         return field_035
 
-    @staticmethod
-    def __get_852b(record):
-        location_field = None
-        if len(record.get_fields('852')) > 0:
-            fields = record.get_fields('852')
-            for field in fields:
-                subfields = field.get_subfields('b')
-                if len(subfields) == 1:
-                    location_field = subfields[0]
-        return location_field
-
-    @staticmethod
-    def __get_call_number(record):
-        """
-        Returns value of OCLC 090 field.
-        :param record: record node
-        :return: call number
-        """
-        call_number = None
-        if len(record.get_fields('852')) > 0:
-            fields = record.get_fields('852')
-            for field in fields:
-                subfields = field.get_subfields('h')
-                if len(subfields) == 1:
-                    call_number = subfields[0]
-        return call_number
-
     def __database_insert(self, cursor, conn, field, oclc_field, oclc_response, title):
         """
         Insert OCLC record into local database
@@ -753,6 +648,12 @@ class RecordsModifier:
         else:
             print('Missing database connection.')
 
+    @staticmethod
+    def __is_control_field(field):
+        if re.match("^00", field):
+            return True
+        return False
+
     def replace_fields(self, oclc_001_value, record, substitutions, oclc_response):
         """
         Handles all OCLC field replacements
@@ -762,12 +663,15 @@ class RecordsModifier:
         :param oclc_response: the reponse from OCLC
         :return:
         """
+
+        if not self.replacement_strategy:
+            print('WARNING: You have not defined a replacement strategy.')
         # Assure OCLC values are in 001 and 003. Alma load will generate 035.
         # Do this after title validation.
         if oclc_001_value:
             # Update 001 with the value returned in the OCLC API response. This
             # can vary from the original value in the input records.
-            self.__add_oclc_001_003(record, oclc_001_value)
+            self.__replace_oclc_001_003(record, oclc_001_value)
             self.updated_001_count += 1
             self.updated_003_count += 1
         else:
@@ -777,172 +681,21 @@ class RecordsModifier:
         self.__replace_leader(record, oclc_response)
         self.updated_leader_count += 1
 
-        # Remaining field substitutions.
-        if '006' in substitutions:
-            self.__control_field_update(record, '006',
-                                        oclc_response)
-        if '007' in substitutions:
-            self.__control_field_update(record, '007',
-                                        oclc_response)
-        if '008' in substitutions:
-            self.__control_field_update(record, '008',
-                                        oclc_response)
-        if '024' in substitutions:
-            self.__data_field_update(record, '024',
-                                     oclc_response)
-        if '035' in substitutions:
-            self.__data_field_update(record, '035',
-                                     oclc_response)
-        if '028' in substitutions:
-            self.__data_field_update(record, '028',
-                                     oclc_response)
-        if '041' in substitutions:
-            self.__data_field_update(record, '041',
-                                     oclc_response)
-        if '043' in substitutions:
-            self.__data_field_update(record, '043',
-                                     oclc_response)
-        if '082' in substitutions:
-            self.__data_field_update(record, '082',
-                                     oclc_response)
-        if '084' in substitutions:
-            self.__data_field_update(record, '084',
-                                     oclc_response)
-        if '100' in substitutions:
-            self.__data_field_update(record, '100',
-                                     oclc_response)
-        if '110' in substitutions:
-            self.__data_field_update(record, '110',
-                                     oclc_response)
-        if '111' in substitutions:
-            self.__data_field_update(record, '111',
-                                     oclc_response)
-        if '130' in substitutions:
-            self.__data_field_update(record, '130',
-                                     oclc_response)
-        if '222' in substitutions:
-            self.__data_field_update(record, '222',
-                                     oclc_response)
-        if '240' in substitutions:
-            self.__data_field_update(record, '240',
-                                     oclc_response)
-        if '245' in substitutions:
-            self.__data_field_update(record, '245',
-                                     oclc_response)
-        if '246' in substitutions:
-            self.__data_field_update(record, '246',
-                                     oclc_response)
-        if '247' in substitutions:
-            self.__data_field_update(record, '247',
-                                     oclc_response)
-        if '250' in substitutions:
-            self.__data_field_update(record, '250',
-                                     oclc_response)
-        if '264' in substitutions:
-            self.__data_field_update(record, '264',
-                                     oclc_response)
-        if '300' in substitutions:
-            self.__data_field_update(record, '300',
-                                     oclc_response)
-        if '337' in substitutions:
-            self.__data_field_update(record, '337',
-                                     oclc_response)
-        if '340' in substitutions:
-            self.__data_field_update(record, '340',
-                                     oclc_response)
-        if '362' in substitutions:
-            self.__data_field_update(record, '362',
-                                     oclc_response)
-        if '386' in substitutions:
-            self.__data_field_update(record, '386',
-                                     oclc_response)
-        if '490' in substitutions:
-            self.__data_field_update(record, '490',
-                                     oclc_response)
-        if '500' in substitutions:
-            self.__data_field_update(record, '500',
-                                         oclc_response)
-        if '505' in substitutions:
-            self.__data_field_update(record, '505',
-                                     oclc_response)
-        if '510' in substitutions:
-            self.__data_field_update(record, '510',
-                                     oclc_response)
-        if '511' in substitutions:
-            self.__data_field_update(record, '511',
-                                     oclc_response)
-        if '520' in substitutions:
-            self.__data_field_update(record, '520',
-                                     oclc_response)
-        if '521' in substitutions:
-            self.__data_field_update(record, '521',
-                                     oclc_response)
-        if '526' in substitutions:
-            self.__data_field_update(record, '526',
-                                     oclc_response)
-        if '533' in substitutions:
-            self.__data_field_update(record, '533',
-                                     oclc_response)
-        if '538' in substitutions:
-            self.__data_field_update(record, '538',
-                                     oclc_response)
-        if '541' in substitutions:
-            self.__data_field_update(record, '541',
-                                     oclc_response)
-        if '550' in substitutions:
-            self.__data_field_update(record, '550',
-                                     oclc_response)
-        if '600' in substitutions:
-            self.__data_field_update(record, '600',
-                                     oclc_response)
-        if '610' in substitutions:
-            self.__data_field_update(record, '610',
-                                     oclc_response)
-        if '611' in substitutions:
-            self.__data_field_update(record, '611',
-                                     oclc_response)
-        if '630' in substitutions:
-            self.__data_field_update(record, '630',
-                                     oclc_response)
-        if '650' in substitutions:
-            self.__data_field_update(record, '650',
-                                     oclc_response)
-        if '651' in substitutions:
-            self.__data_field_update(record, '651',
-                                     oclc_response)
-        if '655' in substitutions:
-            self.__data_field_update(record, '655',
-                                     oclc_response)
-        if '700' in substitutions:
-            self.__data_field_update(record, '700',
-                                     oclc_response)
-        if '710' in substitutions:
-            self.__data_field_update(record, '710',
-                                     oclc_response)
-        if '730' in substitutions:
-            self.__data_field_update(record, '730',
-                                     oclc_response)
-        if '740' in substitutions:
-            self.__data_field_update(record, '740',
-                                     oclc_response)
-        if '752' in substitutions:
-            self.__data_field_update(record, '752',
-                                     oclc_response)
-        if '760' in substitutions:
-            self.__data_field_update(record, '760',
-                                     oclc_response)
-        if '765' in substitutions:
-            self.__data_field_update(record, '765',
-                                     oclc_response)
-        if '776' in substitutions:
-            self.__data_field_update(record, '776',
-                                     oclc_response)
-        if '780' in substitutions:
-            self.__data_field_update(record, '780',
-                                     oclc_response)
-        if '830' in substitutions:
-            self.__data_field_update(record, '830',
-                                     oclc_response)
-        if '850' in substitutions:
-            self.__data_field_update(record, '850',
-                                     oclc_response)
+        if self.replacement_strategy == 'replace_only':
+            # This strategy only replaces fields that already exist in the record.
+            fields = record.get_fields()
+
+            for field in fields:
+                if field.tag in substitutions:
+                    if self.__is_control_field(field.tag):
+                        self.__replace_control_field(record, field.tag, oclc_response)
+                    else:
+                        self.__data_field_update(record, field.tag, oclc_response)
+
+        elif self.replacement_strategy == 'replace_and_add':
+            # This strategy replaces and adds new fields if they exist in the OCLC record.
+            for sub in substitutions:
+                if self.__is_control_field(sub):
+                    self.__replace_control_field(record, sub, oclc_response)
+                else:
+                    self.__data_field_update(record, sub, oclc_response)

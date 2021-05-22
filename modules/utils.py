@@ -186,3 +186,15 @@ def log_035z(field_element, value_035a, writer):
         except Exception as err:
             print('error writing to z log.')
             print(err)
+
+
+def get_subfields_arr(field):
+    sub_fields = field.subfields_as_dict()
+    keys = sub_fields.keys()
+    subs = []
+    for key in keys:
+        subs_list = sub_fields[key]
+        for val in subs_list:
+            subs.append(key)
+            subs.append(val)
+    return subs

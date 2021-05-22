@@ -2,6 +2,10 @@ import re
 
 
 class LocationMapper:
+    """
+    Class for PNCA call number mapping.
+    """
+
     mapping = {
         'a': 'pstacks',
         'b': 'pstacks',
@@ -49,8 +53,10 @@ class LocationMapper:
         return self.mapping[temp_location]
 
     def get_location_by_callnumber(self, call_number):
+        location = None
         key = self.get_key(call_number)
-        location = self.mapping[key]
+        if key in self.mapping:
+            location = self.mapping[key]
         return location
 
     @staticmethod
