@@ -1,10 +1,11 @@
 from urllib.error import HTTPError
 
 from pymarc import MARCReader
-import modules.utils as utils
-from db_connector import DatabaseConnector
-from modules.oclc_connector import OclcConnector
+import processors.utils as utils
+from processors.oclc_update.db_connector import DatabaseConnector
+from processors.oclc_update.oclc_connector import OclcConnector
 import xml.etree.ElementTree as ET
+
 
 class CompareOclcNumbers:
 

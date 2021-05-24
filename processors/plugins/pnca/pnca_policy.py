@@ -1,25 +1,41 @@
 import re
 
-from modules.location_mapping import LocationMapper
+from processors.plugins.pnca.location_mapper import LocationMapper
 
 
-class PncaLocalModification:
+class UpdatePolicy:
     """
-    The more idiosyncratic parts of the PNCA migration live here.
+    The idiosyncratic parts of the PNCA migration live here.
     """
-
     streaming_video_count = 0
     ebook_count = 0
     online_periodical_count = 0
 
-    @staticmethod
-    def get_local_fields():
+    def execute(self, record, identifier):
         """
-        Fields that should be marked as local before ingesting into Alma.
+        Executes record updates.
+        :param record: pymarc record
+        :param identifier: the OCLC identifier
         :return:
         """
-        fields = ['590', '690', '852', '900', '918', '921', '994', '998', '936', '991']
-        return fields
+        self.__add_location(record, identifier)
+        self.__add_inventory(record)
+        self.__add_funds(record)
+        self.__add_local_field_note(record)
+
+    @staticmethod
+    def conditional_move_tags():
+        """
+        Implement this method if you need to preserve information by moving
+        it to a local field when the information was not replaced by data in
+        the OCLC response.
+        :return: An array of string arrays that contain the original tag and
+        the local field target.
+        """
+        # []
+        field1 = ['500','591']
+        field2 = ['505', '590']
+        return [field1, field2]
 
     def is_online(self, record):
         """
@@ -54,8 +70,30 @@ class PncaLocalModification:
         total_electronic_records = self.streaming_video_count + self.ebook_count + self.online_periodical_count
         print('Total electronic records: ' + str(total_electronic_records))
 
+    def __add_local_field_note(self, record):
+        """
+        Alma NZ will preserve local fields when they are
+        labelled with subfield 9 equal to 'local'.
+        :param record: pymarc record
+        :return:
+        """
+        # List of PNCA local fields to preserve is kept here.
+        fields = self.__get_local_fields()
+        for field in fields:
+            for rec_field in record.get_fields(field):
+                rec_field.add_subfield('9', 'local')
+
     @staticmethod
-    def add_inventory(record):
+    def __get_local_fields():
+        """
+        Fields that should be marked as local before ingesting into Alma.
+        :return:
+        """
+        fields = ['590', '690', '852', '900', '918', '921', '994', '998', '936', '991']
+        return fields
+
+    @staticmethod
+    def __add_inventory(record):
         """
         Copy the inventory note to 852(i)
         :param record: pymarc record
@@ -72,7 +110,7 @@ class PncaLocalModification:
                         field.add_subfield('i', item)
 
     @staticmethod
-    def add_funds(record):
+    def __add_funds(record):
         """
         Copy the funds note to 852(f)
         """
@@ -86,7 +124,7 @@ class PncaLocalModification:
                     if re.match('^Fund', item):
                         field.add_subfield('f', 'PNCA ' + item)
 
-    def add_location(self, record, oclc_number):
+    def __add_location(self, record, oclc_number):
         """
         Add a location based on call number or 852(b)
         :param record:

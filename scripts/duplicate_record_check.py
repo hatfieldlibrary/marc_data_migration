@@ -2,8 +2,8 @@ import datetime
 
 from pymarc import MARCReader
 
-from db_connector import DatabaseConnector
-from modules import utils
+from processors.oclc_update.db_connector import DatabaseConnector
+from processors import utils
 
 
 class CheckDuplicates:

@@ -1,8 +1,8 @@
 from urllib.error import HTTPError
 import re
 from pymarc import MARCReader
-import modules.utils as utils
-from modules.oclc_connector import OclcConnector
+import processors.utils as utils
+from processors.oclc_update.oclc_connector import OclcConnector
 
 
 class FetchMarcXMLRecs:

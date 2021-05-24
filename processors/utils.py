@@ -1,5 +1,5 @@
 import re
-from modules.fuzzy_match import FuzzyMatcher
+from processors.oclc_update.fuzzy_match import FuzzyMatcher
 
 valid_format_regex = re.compile('^\d+$')
 
@@ -42,15 +42,17 @@ def get_oclc_001_value(field_001, field_003):
     :return: The 001 value or empty None of not OCLC record
     """
     final_value_001 = None
+    value_001 = None
+    value_003 = None
     if field_001:
         value_001 = field_001.value()
     if field_003:
         value_003 = field_003.value()
 
-    if value_001 is not None:
+    if value_001:
         if 'ocn' in value_001 or 'ocm' in value_001 or 'on' in value_001:
             final_value_001 = value_001.replace('ocn', '').replace('ocm', '').replace('on', '')
-    elif value_003 is not None:
+    elif value_003:
         if 'OCoLC' in value_003:
             final_value_001 = value_001
     if final_value_001 is not None:

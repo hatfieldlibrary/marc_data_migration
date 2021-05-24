@@ -1,20 +1,23 @@
 import time
+from importlib import import_module
 from urllib.error import HTTPError
 import xml.etree.ElementTree as ET
-from pymarc import MARCReader, Field, Leader, TextWriter
+from pymarc import Field, Leader, TextWriter
 
-from modules.add_response_to_database import DatabaseUpdate
-from modules.field_generators import ControlFieldGenerator, DataFieldGenerator
-from modules.oclc_connector import OclcConnector
-from modules.pnca_local import PncaLocalModification
-from db_connector import DatabaseConnector
-import modules.utils as utils
-import modules.field_replacement_count as field_count
+from processors.oclc_update.add_response_to_database import DatabaseUpdate
+from processors.oclc_update.field_generators import ControlFieldGenerator, DataFieldGenerator
+from processors.oclc_update.oclc_connector import OclcConnector
+from processors.oclc_update.db_connector import DatabaseConnector
+import processors.utils as utils
+from processors.oclc_update.replace_configuration import substitution_array
+import processors.oclc_update.field_replacement_count as field_count
 import datetime
 import re
 
+from processors.read_marc import MarcReader
 
-class RecordsModifier:
+
+class RecordUpdater:
     connector = OclcConnector()
     database_update = DatabaseUpdate()
 
@@ -27,20 +30,21 @@ class RecordsModifier:
     updated_003_count = 0
     updated_leader_count = 0
 
-    ebook_count = 0
-    online_periodical_count = 0
-    streaming_video_count = 0
+    # ebook_count = 0
+    # online_periodical_count = 0
+    # streaming_video_count = 0
 
     replacement_strategy = None
+    update_policy = None
 
     field_audit_writer = None
 
     def update_fields_using_oclc(self,
                                  file,
+                                 plugin,
                                  database_name,
                                  password,
                                  require_perfect_match,
-                                 substitutions,
                                  title_check,
                                  database_insert,
                                  writer,
@@ -61,10 +65,10 @@ class RecordsModifier:
         from OCLC worldcat.  The method takes a substitutions array
         that specifies the fields to be updated.
         :param file: The marc file (binary)
+        :param plugin: The module to use when modifying records
         :param database_name: Optional database name
         :param password: Optional database password
         :param require_perfect_match: If True a perfect title match with OCLC is required
-        :param substitutions: The array of fields to update
         :param title_check: If true will do 245a fuzzy title match
         :param database_insert: If true insert API repsonse into database
         :param writer: The output file writer
@@ -85,6 +89,10 @@ class RecordsModifier:
         """
 
         self.replacement_strategy = replacement_strategy
+
+        if plugin:
+            klass = getattr(import_module(plugin), 'UpdatePolicy')
+            self.update_policy = klass()
 
         print('Using replacement strategy: ' + self.replacement_strategy)
 
@@ -112,202 +120,196 @@ class RecordsModifier:
                                   'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                                   'xsi:schemaLocation="http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">')
 
+        modified_count = 0
+        unmodified_count = 0
+        bad_record_count = 0
+        fuzzy_record_count = 0
+
         conn = None
         cursor = None
         if database_name:
+
             # If database provided, initialize the connection and get cursor.
             db_connect = DatabaseConnector()
             conn = db_connect.get_connection(database_name, password)
             print("Database opened successfully.")
             cursor = conn.cursor()
 
-        with open(file, 'rb') as fh:
-            modified_count = 0
-            unmodified_count = 0
-            bad_record_count = 0
-            fuzzy_record_count = 0
-            # Set to permissive to avoid exiting loop; report
-            # unreadable records in the output. Prevent python utf-8
-            # handling.
-            reader = MARCReader(fh, permissive=True, utf8_handling='ignore')
+        reader = MarcReader()
 
-            for record in reader:
-                if record:
-                    field_001 = None
-                    field_035 = None
-                    input_oclc_number = None
-                    oclc_001_value = None
-                    oclc_response = None
-                    title = ''
+        for record in reader.get_reader(file):
+            if record:
+                field_001 = None
+                field_035 = None
+                input_oclc_number = None
+                oclc_001_value = None
+                oclc_response = None
+                title = ''
 
-                    try:
-                        if not record.title():
-                            print('Record missing 245(a)')
-                            missing_required_field_writer.write(record)
-                        if record['245'] and record['245']['a']:
-                            title = utils.get_original_title(record)
-                        if len(record.get_fields('001')) == 1:
-                            field_001 = utils.get_oclc_001_value(record['001'], record['003'])
-                        if len(record.get_fields('035')) > 0:
-                            # Note: side effect of this method call is logging 035(z) subfields
-                            # to the cancelled_oclc_writer file handle.
-                            field_035 = self.__get_035_value(record, cancelled_oclc_writer)
+                try:
+                    if not record.title():
+                        print('Record missing 245(a)')
+                        missing_required_field_writer.write(record)
+                    if record['245'] and record['245']['a']:
+                        title = utils.get_original_title(record)
+                    if len(record.get_fields('001')) == 1:
+                        field_001 = utils.get_oclc_001_value(record['001'], record['003'])
+                    if len(record.get_fields('035')) > 0:
+                        # Note: side effect of this method call is logging 035(z) subfields
+                        # to the cancelled_oclc_writer file handle.
+                        field_035 = self.__get_035_value(record, cancelled_oclc_writer)
 
-                    except Exception as err:
-                        print('error reading fields from input record.')
-                        print(err)
+                except Exception as err:
+                    print('error reading fields from input record.')
+                    print(err)
 
-                    # The idiosyncratic PNCA stuff.
-                    pnca_stuff = PncaLocalModification()
-                    is_online = pnca_stuff.is_online(record)
-                    if field_001 is not None:
-                        pnca_stuff.add_location(record, field_001)
-                    else:
-                        pnca_stuff.add_location(record, field_035)
-                    pnca_stuff.add_inventory(record)
-                    pnca_stuff.add_funds(record)
+                if field_001:
+                    input_oclc_number = field_001
+                elif field_035:
+                    input_oclc_number = field_035
 
-                    try:
-                        if field_001:
-                            input_oclc_number = field_001
-                        elif field_035:
-                            input_oclc_number = field_035
+                # Execute the project-specific update policy.
+                if self.update_policy:
+                    self.update_policy.execute(record, input_oclc_number)
+                    is_online = self.update_policy.is_online(record)
 
-                        self.__add_local_field_note(record)
+                try:
 
-                        # If input record includes an OCLC number retrieve record from
-                        # the API or local database.
-                        if input_oclc_number:
-                            oclc_response = self.__get_oclc_response(input_oclc_number, cursor, database_insert)
+                    # If input record includes an OCLC number retrieve record from
+                    # the API or local database.
+                    if input_oclc_number:
+                        oclc_response = self.__get_oclc_response(input_oclc_number, cursor, database_insert)
 
-                        if oclc_response is not None:
-                            oclc_001_value = self.__get_field_text('001', oclc_response)
-                            # Log if the OCLC response does not include 001. This can happen
-                            # if we get an error diagnostic from the API. That should
-                            # quite rare since up to 3 requests are made. The error
-                            # to expect is file not found.
-                            if input_oclc_number and not oclc_001_value:
-                                print('Missing oclc 001 for ' + input_oclc_number)
-                                if bad_oclc_reponse_writer:
-                                    bad_oclc_reponse_writer.write(ET.tostring(oclc_response,
-                                                                              encoding='utf8',
-                                                                              method='xml'))
-                            # Add record to database if requested.
-                            if input_oclc_number and database_insert:
-                                self.__database_insert(cursor,
-                                                       conn,
-                                                       input_oclc_number,
-                                                       oclc_001_value,
-                                                       oclc_response, title)
+                    if oclc_response is not None:
+                        oclc_001_value = self.__get_field_text('001', oclc_response)
+                        # Log if the OCLC response does not include 001. This can happen
+                        # if we get an error diagnostic from the API. That should
+                        # quite rare since up to 3 requests are made. The error
+                        # to expect is file not found.
+                        if input_oclc_number and not oclc_001_value:
+                            print('Missing oclc 001 for ' + input_oclc_number)
+                            if bad_oclc_reponse_writer:
+                                bad_oclc_reponse_writer.write(ET.tostring(oclc_response,
+                                                                          encoding='utf8',
+                                                                          method='xml'))
+                        # Add record to database if requested.
+                        if input_oclc_number and database_insert:
+                            self.__database_insert(cursor,
+                                                   conn,
+                                                   input_oclc_number,
+                                                   oclc_001_value,
+                                                   oclc_response, title)
 
-                            # Write to the OCLC record to file if file handle was provided.
-                            if oclc_xml_writer is not None:
-                                oclc_xml_writer.write(str(ET.tostring(oclc_response,
-                                                                      encoding='utf8',
-                                                                      method='xml')))
+                        # Write to the OCLC record to file if file handle was provided.
+                        if oclc_xml_writer is not None:
+                            oclc_xml_writer.write(str(ET.tostring(oclc_response,
+                                                                  encoding='utf8',
+                                                                  method='xml')))
 
-                        # Modify records if input title matches that of the OCLC response.
+                    # Modify records if input title matches that of the OCLC response.
+                    #
+                    # If "require_perfect_match" is True, validation checks for an exact match
+                    # on the 245(a)(b) fields. Only exact matches are written to the
+                    # updated records file.  Imperfect (fuzzy) matches are written to a
+                    # separate file labeled in the 962 for review.
+                    #
+                    # If the "require_perfect_match" parameter is False, field substitution
+                    # will take place when the similarity ratio is greater than the minimum value
+                    # defined in the matcher class. Records will be written to the updated
+                    # records output file.
+                    #
+                    # Verification will fail when the oclc_response is None. The record
+                    # will be written to unmodified records file.
+
+                    if utils.verify_oclc_response(oclc_response, title, None, record.title(),
+                                                  input_oclc_number, title_check, require_perfect_match):
+
+                        self.replace_fields(oclc_001_value, record, oclc_response)
+
+                        modified_count += 1
+
+                        if is_online:
+                            updated_online_writer.write(record)
+                        else:
+                            writer.write(record)
+
+                    # When "require_perfect_match" is True make substitutions for records
+                    # with an imperfect OCLC title match. These records will be written to a
+                    # separate file. Records will be labeled using the 962 field.
+
+                    elif oclc_response is not None and require_perfect_match:
+
+                        field_generator = DataFieldGenerator()
+
+                        # Write the original version of the record to a separate output
+                        # file so the original is available to the reviewer.
+                        original_fuzzy_writer.write(record)
+
+                        # Next, replace fields with OCLC data.
+                        self.replace_fields(oclc_001_value, record, oclc_response)
+
+                        # Now test the OCLC response with allowance for fuzzy matches on the title.
+                        # The minimum match ratio is defined in the FuzzyMatcher class. Adjust the
+                        # ratio to increase or decrease the number of records that "pass".
                         #
-                        # If "require_perfect_match" is True, validation checks for an exact match
-                        # on the 245(a)(b) fields. Only exact matches are written to the
-                        # updated records file.  Imperfect (fuzzy) matches are written to a
-                        # separate file labeled in the 962 for review.
+                        # The matcher uses token sorting to help reduce failures that result from
+                        # trivial order differences in the 255(a)(b) subfields.
                         #
-                        # If the "require_perfect_match" parameter is False, field substitution
-                        # will take place when the similarity ratio is greater than the minimum value
-                        # defined in the matcher class. Records will be written to the updated
-                        # records output file.
-                        #
-                        # Verification will fail when the oclc_response is None. The record
-                        # will be written to unmodified records file.
+                        # When a record passes the verification step, add the corresponding 962 field
+                        # label to the record.
 
-                        if utils.verify_oclc_response(oclc_response, title, None, record.title(),
-                                                      input_oclc_number, title_check, require_perfect_match):
-
-                            self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
-
-                            modified_count += 1
+                        if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
+                                                      input_oclc_number, title_check, False):
+                            field = field_generator.create_data_field('962', [0, 0],
+                                                                      'a', 'fuzzy-match-passed')
+                            record.add_ordered_field(field)
 
                             if is_online:
-                                updated_online_writer.write(record)
+                                fuzzy_online_writer.write(record)
                             else:
-                                writer.write(record)
+                                fuzzy_record_writer.write(record)
 
-                        # When "require_perfect_match" is True make substitutions for records
-                        # with an imperfect OCLC title match. These records will be written to a
-                        # separate file. Records will be labeled using the 962 field.
-
-                        elif oclc_response is not None and require_perfect_match:
-
-                            field_generator = DataFieldGenerator()
-
-                            # Write the original version of the record to a separate output
-                            # file so the original is available to the reviewer.
-                            original_fuzzy_writer.write(record)
-
-                            # Next, replace fields with OCLC data.
-                            self.replace_fields(oclc_001_value, record, substitutions, oclc_response)
-
-                            # Now test the OCLC response with allowance for fuzzy matches on the title.
-                            # The minimum match ratio is defined in the FuzzyMatcher class. Adjust the
-                            # ratio to increase or decrease the number of records that "pass".
-                            #
-                            # The matcher uses token sorting to help reduce failures that result from
-                            # trivial order differences in the 255(a)(b) subfields.
-                            #
-                            # When a record passes the verification step, add the corresponding 962 field
-                            # label to the record.
-
-                            if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
-                                                          input_oclc_number, title_check, False):
-                                field = field_generator.create_data_field('962', [0, 0],
-                                                                          'a', 'fuzzy-match-passed')
-                                record.add_ordered_field(field)
-
-                                if is_online:
-                                    fuzzy_online_writer.write(record)
-                                else:
-                                    fuzzy_record_writer.write(record)
-
-                            # For records that to not meet the title threshold, add the corresponding 962 field
-                            # label to the record. Many records that "fail" will be valid OCLC responses. This
-                            # label allows the reviewer to review records with the greatest title variance.
-
-                            else:
-                                field = field_generator.create_data_field('962', [0, 0],
-                                                                          'a', 'fuzzy-match-failed')
-                                record.add_ordered_field(field)
-
-                                if is_online:
-                                    fuzzy_online_writer.write(record)
-                                else:
-                                    fuzzy_record_writer.write(record)
-
-                            fuzzy_record_count += 1
-                            modified_count += 1
-
-                        # For records with no OCLC response, write to a separate file and continue.
+                        # For records that to not meet the title threshold, add the corresponding 962 field
+                        # label to the record. Many records that "fail" will be valid OCLC responses. This
+                        # label allows the reviewer to review records with the greatest title variance.
 
                         else:
-                            unmodified_count += 1
-                            self.__move_field(record, '500', '591')
-                            self.__move_field(record, '505', '590')
+                            field = field_generator.create_data_field('962', [0, 0],
+                                                                      'a', 'fuzzy-match-failed')
+                            record.add_ordered_field(field)
 
                             if is_online:
-                                unmodified_online_writer.write(record)
+                                fuzzy_online_writer.write(record)
                             else:
-                                unmodified_writer.write(record)
+                                fuzzy_record_writer.write(record)
 
-                    except HTTPError as err:
-                        print(err)
-                    except UnicodeEncodeError as err:
-                        print(err)
+                        fuzzy_record_count += 1
+                        modified_count += 1
 
-            else:
-                bad_record_count += 1
-                print(reader.current_exception)
-                print(reader.current_chunk)
-                bad_writer.write(reader.current_chunk)
+                    # For records with no OCLC response, write to a separate file and continue.
+
+                    else:
+                        unmodified_count += 1
+                        self.__move_field(record, '500', '591')
+                        self.__move_field(record, '505', '590')
+
+                        if is_online:
+                            unmodified_online_writer.write(record)
+                        else:
+                            unmodified_writer.write(record)
+
+                except HTTPError as err:
+                    print(err)
+                except UnicodeEncodeError as err:
+                    print(err)
+
+        else:
+            bad_record_count += 1
+            print(reader.current_exception)
+            print(reader.current_chunk)
+            bad_writer.write(reader.current_chunk)
+
+        reader.close()
 
         if oclc_xml_writer is not None:
             oclc_xml_writer.write('</collection>')
@@ -335,7 +337,7 @@ class RecordsModifier:
         if database_insert:
             print('Failed OCLC record retrieval count: ' + str(self.failed_oclc_lookup_count))
         print()
-        pnca_stuff.print_online_record_counts()
+        self.update_policy.print_online_record_counts()
 
     def __get_oclc_response(self, oclc_number, cursor, database_insert):
         """
@@ -382,20 +384,6 @@ class RecordsModifier:
         if oclc_response is not None:
             return oclc_response.find('./*[@tag="' + field + '"]')
         return None
-
-    def __add_local_field_note(self, record):
-        """
-        Alma NZ will preserve local fields when they are
-        labelled with subfield 9 equal to 'local'.
-        :param record: pymarc record
-        :return:
-        """
-        pnca_stuff = PncaLocalModification()
-        # List of PNCA local fields to preserve is kept here.
-        fields = pnca_stuff.get_local_fields()
-        for field in fields:
-            for rec_field in record.get_fields(field):
-                rec_field.add_subfield('9', 'local')
 
     @staticmethod
     def __remove_field(field, record):
@@ -516,11 +504,14 @@ class RecordsModifier:
                     # add new field with OCLC data to record
                     record.add_ordered_field(field)
         else:
-            # When no OCLC field is found for these fields, do a conditional move to a local field.
-            if replacement_field_tag == '505':
-                self.__conditional_move_field(record, replacement_field_tag, '590', oclc_response)
-            if replacement_field_tag == '500':
-                self.__conditional_move_field(record, replacement_field_tag, '591', oclc_response)
+            # The policy plugin may define fields that should be moved to a
+            # local field when they are not replaced by OCLC data.
+            if self.update_policy:
+                for field_move in self.update_policy.conditional_move_tags():
+                    if len(field_move) == 2:
+                        self.__conditional_move_field(record, field_move[0], field_move[1], oclc_response)
+                    else:
+                        print("Something is wrong with the conditional move array.")
 
     def __replace_control_field(self, record, replacement_field, oclc_response):
         """
@@ -654,12 +645,11 @@ class RecordsModifier:
             return True
         return False
 
-    def replace_fields(self, oclc_001_value, record, substitutions, oclc_response):
+    def replace_fields(self, oclc_001_value, record, oclc_response):
         """
         Handles all OCLC field replacements
         :param oclc_001_value: the 001 value from OCLC
         :param record: the record node
-        :param substitutions: the array of substitution tags
         :param oclc_response: the reponse from OCLC
         :return:
         """
@@ -686,7 +676,7 @@ class RecordsModifier:
             fields = record.get_fields()
 
             for field in fields:
-                if field.tag in substitutions:
+                if field.tag in substitution_array:
                     if self.__is_control_field(field.tag):
                         self.__replace_control_field(record, field.tag, oclc_response)
                     else:
@@ -694,7 +684,7 @@ class RecordsModifier:
 
         elif self.replacement_strategy == 'replace_and_add':
             # This strategy replaces and adds new fields if they exist in the OCLC record.
-            for sub in substitutions:
+            for sub in substitution_array:
                 if self.__is_control_field(sub):
                     self.__replace_control_field(record, sub, oclc_response)
                 else:
