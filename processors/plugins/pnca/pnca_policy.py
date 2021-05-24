@@ -30,10 +30,10 @@ class UpdatePolicy:
         it to a local field when the information was not replaced by data in
         the OCLC response.
         :return: An array of string arrays that contain the original tag and
-        the local field target.
+        the new target field.
         """
-        # []
-        field1 = ['500','591']
+        # return []
+        field1 = ['500', '591']
         field2 = ['505', '590']
         return [field1, field2]
 
@@ -86,10 +86,39 @@ class UpdatePolicy:
     @staticmethod
     def __get_local_fields():
         """
-        Fields that should be marked as local before ingesting into Alma.
-        :return:
+        Fields that should be marked as local before importing into Alma.
+        :return: string array
         """
-        fields = ['590', '690', '852', '900', '918', '921', '994', '998', '936', '991']
+        fields = ['590',
+                  '591',
+                  '690',
+                  '852',
+                  '900',
+                  '901',
+                  '902',
+                  '909',
+                  '910',
+                  '913',
+                  '917',
+                  '918',
+                  '921',
+                  '936',
+                  '938',
+                  '940',
+                  '945',
+                  '962',
+                  '966',
+                  '970',
+                  '971',
+                  '975',
+                  '987',
+                  '989',
+                  '921',
+                  '991',
+                  '994',
+                  '995',
+                  '998',
+                  '999']
         return fields
 
     @staticmethod
@@ -133,7 +162,7 @@ class UpdatePolicy:
         """
         location_mapper = LocationMapper()
         location_field = self.__get_852b(record)
-        # This is a hack for locations that cannot be determined by
+        # This is a hack for locations that can't be determined by
         # using the PNCA call number.
         if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
             try:

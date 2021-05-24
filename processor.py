@@ -1,18 +1,22 @@
 from pymarc import TextWriter
 
-from modules.check_oclc_numbers import CompareOclcNumbers
-from modules.duplicate_record_check import CheckDuplicates
-from modules.records_modifier import RecordsModifier
-from modules.fetch_marcxml import FetchMarcXMLRecs
+from processors.modify_record.record_modify import RecordModifier
+from processors.oclc_update.check_oclc_numbers import CompareOclcNumbers
+from scripts.duplicate_record_check import CheckDuplicates
+from processors.oclc_update.record_update import RecordUpdater
+from processors.oclc_update.fetch_marcxml import FetchMarcXMLRecs
 import argparse
 import datetime
-
-database_name = 'pnca'
 
 parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
                     help='Required: the path to the marc file to be processed')
+parser.add_argument('-p', '--plugin', metavar='module name', type=str,
+                    help='The plugin module used for record modifications. Example: '
+                         'processors.plugins.pnca.pnca_policy')
+parser.add_argument('-m', '--modify-recs', action='store_true',
+                    help='Just modify records using the provided plugin. ')
 parser.add_argument('-r', '--replace-fields', action='store_true',
                     help='Replace fields with fields from the OCLC record.')
 parser.add_argument('-pm', '--perfect-match', action='store_true',
@@ -32,7 +36,7 @@ parser.add_argument('-nt', '--no-title-check', action='store_false',
                          'to do this.')
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modified fields.")
-parser.add_argument("-m", "--track-title-matches", action="store_true",
+parser.add_argument("-tm", "--track-title-matches", action="store_true",
                     help="Create audit log of fuzzy title matches.")
 parser.add_argument("-so", "--save-oclc", action="store_true",
                     help="Save records from OCLC to local xml file during while running the replacement task.")
@@ -52,7 +56,6 @@ if not source:
 
 # optional database name to use instead of OCLC API
 database_name = args.use_database
-
 # if database requires password replace empty string
 password = 'Sibale2'
 
@@ -78,7 +81,24 @@ if args.oclc_records:
     fetch_recs = FetchMarcXMLRecs()
     fetch_recs.fetch_marcxml(source, oclc_xml_writer, oclc_developer_key)
 
+if args.modify_recs:
+
+    # The policy plugin module to use for record modifications.
+    # plugin = 'processors.plugins.pnca.pnca_policy'
+
+    # modified records
+    modified_records_writer = TextWriter(open('output/modified-records/modified-records-pretty-' + str(dt) + '.txt', 'w'))
+
+    # online item records
+    modified_online_writer = TextWriter(open('output/modified-records/modified-online-pretty-' + str(dt) + '.txt', 'w'))
+
+    modifier = RecordModifier()
+    modifier.record_modify(args.source, args.plugin, modified_records_writer, modified_online_writer)
+
 if args.replace_fields:
+
+    # The policy plugin module to use for record modifications.
+    # plugin = 'processors.plugins.pnca.pnca_policy'
 
     # Get developer key. Change path as needed!
     with open('/Users/mspalti/oclc_worldcat_my_key.txt', 'r') as fh:
@@ -91,10 +111,10 @@ if args.replace_fields:
     updated_online_writer = TextWriter(open('output/updated-records/updated-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # unmodified records
-    unmodified_records_writer = TextWriter(open('output/updated-records/unmodified-records-pretty-' + str(dt) + '.txt', 'w'))
+    unmodified_records_writer = TextWriter(open('output/updated-records/non-updated-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # unmodified online item records
-    unmodified_online_writer = TextWriter(open('output/updated-records/unmodified-online-pretty-' + str(dt) + '.txt', 'w'))
+    unmodified_online_writer = TextWriter(open('output/updated-records/non-updated-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # fuzzy field match records
     fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-updated-records-pretty-' + str(dt) + '.txt', 'w'))
@@ -108,7 +128,6 @@ if args.replace_fields:
     title_log_writer = None
     oclc_xml_writer = None
     field_substitution_audit_writer = None
-    input_marc_xml = None
 
     cancelled_log_writer = open('output/audit/cancelled-oclc-' + str(dt) + '.txt', 'w')
 
@@ -124,88 +143,31 @@ if args.replace_fields:
     if args.track_fields:
         field_substitution_audit_writer = open('output/audit/fields-audit-' + str(dt) + '.txt', 'w')
 
+    updater = RecordUpdater()
 
-    # Fields to be replaced if found in the OCLC record.
-    fields_array = [
-        '006',
-        '007',
-        '008',
-        '024',
-        '028',
-        '041',
-        '043',
-        '082',
-        '084',
-        '100',
-        '110',
-        '111',
-        '130',
-        '222',
-        '240',
-        '245',
-        '246',
-        '247',
-        '250',
-        '264',
-        '300',
-        '337',
-        '340',
-        '362',
-        '386',
-        '490',
-        '500',
-        '505',
-        '510',
-        '511',
-        '520',
-        '521',
-        '526',
-        '533',
-        '538',
-        '541',
-        '550',
-        '600',
-        '610',
-        '611',
-        '630',
-        '650',
-        '651',
-        '655',
-        '700',
-        '710',
-        '730',
-        '740',
-        '752',
-        '760',
-        '765',
-        '780',
-        '830',
-        '850'
-    ]
-
-    modifier = RecordsModifier()
-
-    t = args.no_title_check
-
-    modifier.update_fields_using_oclc(args.source,
-                                      database_name,
-                                      password,
-                                      args.perfect_match,
-                                      fields_array,
-                                      args.no_title_check,
-                                      args.database_insert,
-                                      updated_records_writer,
-                                      unmodified_records_writer,
-                                      bad_records_writer,
-                                      title_log_writer,
-                                      oclc_xml_writer,
-                                      field_substitution_audit_writer,
-                                      fuzzy_records_writer,
-                                      updated_online_writer,
-                                      unmodified_online_writer,
-                                      fuzzy_online_writer,
-                                      cancelled_log_writer,
-                                      oclc_developer_key)
+    # NOTE the alternative replacement strategy is "replace_only" which
+    # simply replaces existing fields with OCLC values and does not
+    # add any new tags to the record.
+    updater.update_fields_using_oclc(args.source,
+                                     args.plugin,
+                                     database_name,
+                                     password,
+                                     args.perfect_match,
+                                     args.no_title_check,
+                                     args.database_insert,
+                                     updated_records_writer,
+                                     unmodified_records_writer,
+                                     bad_records_writer,
+                                     title_log_writer,
+                                     oclc_xml_writer,
+                                     field_substitution_audit_writer,
+                                     fuzzy_records_writer,
+                                     updated_online_writer,
+                                     unmodified_online_writer,
+                                     fuzzy_online_writer,
+                                     cancelled_log_writer,
+                                     oclc_developer_key,
+                                     replacement_strategy='replace_and_add')
 
     bad_records_writer.close()
     if title_log_writer is not None:

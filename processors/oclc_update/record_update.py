@@ -1,4 +1,6 @@
 import time
+import datetime
+import re
 from importlib import import_module
 from urllib.error import HTTPError
 import xml.etree.ElementTree as ET
@@ -8,13 +10,10 @@ from processors.oclc_update.add_response_to_database import DatabaseUpdate
 from processors.oclc_update.field_generators import ControlFieldGenerator, DataFieldGenerator
 from processors.oclc_update.oclc_connector import OclcConnector
 from processors.oclc_update.db_connector import DatabaseConnector
-import processors.utils as utils
 from processors.oclc_update.replace_configuration import substitution_array
-import processors.oclc_update.field_replacement_count as field_count
-import datetime
-import re
-
 from processors.read_marc import MarcReader
+import processors.oclc_update.field_replacement_count as field_count
+import processors.utils as utils
 
 
 class RecordUpdater:
@@ -29,10 +28,6 @@ class RecordUpdater:
     updated_001_count = 0
     updated_003_count = 0
     updated_leader_count = 0
-
-    # ebook_count = 0
-    # online_periodical_count = 0
-    # streaming_video_count = 0
 
     replacement_strategy = None
     update_policy = None
@@ -94,6 +89,10 @@ class RecordUpdater:
             klass = getattr(import_module(plugin), 'UpdatePolicy')
             self.update_policy = klass()
 
+        if not self.update_policy:
+            print('WARNING: You are processing records without a plugin.')
+            print('Records will only be updated with OCLC data.')
+
         print('Using replacement strategy: ' + self.replacement_strategy)
 
         self.field_audit_writer = field_audit_writer
@@ -135,15 +134,16 @@ class RecordUpdater:
             print("Database opened successfully.")
             cursor = conn.cursor()
 
-        reader = MarcReader()
-
-        for record in reader.get_reader(file):
+        wrapper = MarcReader()
+        reader = wrapper.get_reader(file)
+        for record in reader:
             if record:
                 field_001 = None
                 field_035 = None
                 input_oclc_number = None
                 oclc_001_value = None
                 oclc_response = None
+                is_online = None
                 title = ''
 
                 try:
@@ -168,9 +168,11 @@ class RecordUpdater:
                 elif field_035:
                     input_oclc_number = field_035
 
-                # Execute the project-specific update policy.
                 if self.update_policy:
-                    self.update_policy.execute(record, input_oclc_number)
+                    # Note that the online records file is only created
+                    # if a plugin is provided. This is because the way one
+                    # determines record status varies between systems and/or
+                    # cataloging conventions.
                     is_online = self.update_policy.is_online(record)
 
                 try:
@@ -208,23 +210,25 @@ class RecordUpdater:
 
                     # Modify records if input title matches that of the OCLC response.
                     #
-                    # If "require_perfect_match" is True, validation checks for an exact match
+                    # If "require_perfect_match" is True, validation requires an exact match
                     # on the 245(a)(b) fields. Only exact matches are written to the
                     # updated records file.  Imperfect (fuzzy) matches are written to a
-                    # separate file labeled in the 962 for review.
+                    # separate file and labeled in the 962 for review.
                     #
                     # If the "require_perfect_match" parameter is False, field substitution
                     # will take place when the similarity ratio is greater than the minimum value
                     # defined in the matcher class. Records will be written to the updated
                     # records output file.
                     #
-                    # Verification will fail when the oclc_response is None. The record
+                    # Verification fails when the oclc_response is None. The record
                     # will be written to unmodified records file.
 
                     if utils.verify_oclc_response(oclc_response, title, None, record.title(),
                                                   input_oclc_number, title_check, require_perfect_match):
 
                         self.replace_fields(oclc_001_value, record, oclc_response)
+                        if self.update_policy:
+                            self.update_policy.execute(record, oclc_001_value)
 
                         modified_count += 1
 
@@ -263,6 +267,8 @@ class RecordUpdater:
                             field = field_generator.create_data_field('962', [0, 0],
                                                                       'a', 'fuzzy-match-passed')
                             record.add_ordered_field(field)
+                            if self.update_policy:
+                                self.update_policy.execute(record, oclc_001_value)
 
                             if is_online:
                                 fuzzy_online_writer.write(record)
@@ -277,6 +283,8 @@ class RecordUpdater:
                             field = field_generator.create_data_field('962', [0, 0],
                                                                       'a', 'fuzzy-match-failed')
                             record.add_ordered_field(field)
+                            if self.update_policy:
+                                self.update_policy.execute(record, oclc_001_value)
 
                             if is_online:
                                 fuzzy_online_writer.write(record)
@@ -286,12 +294,17 @@ class RecordUpdater:
                         fuzzy_record_count += 1
                         modified_count += 1
 
-                    # For records with no OCLC response, write to a separate file and continue.
+                    # Records with no OCLC response can be modified as-is and written to a separate file.
 
                     else:
                         unmodified_count += 1
-                        self.__move_field(record, '500', '591')
-                        self.__move_field(record, '505', '590')
+
+                        if self.update_policy:
+                            for field_move in self.update_policy.conditional_move_tags():
+                                if len(field_move) == 2:
+                                    # There was no OCLC response, so this move is not conditional.
+                                    self.__move_field(record, field_move[0], field_move[1])
+                            self.update_policy.execute(record, oclc_001_value)
 
                         if is_online:
                             unmodified_online_writer.write(record)
@@ -303,11 +316,11 @@ class RecordUpdater:
                 except UnicodeEncodeError as err:
                     print(err)
 
-        else:
-            bad_record_count += 1
-            print(reader.current_exception)
-            print(reader.current_chunk)
-            bad_writer.write(reader.current_chunk)
+            else:
+                bad_record_count += 1
+                print(reader.current_exception)
+                print(reader.current_chunk)
+                bad_writer.write(reader.current_chunk)
 
         reader.close()
 
@@ -337,7 +350,8 @@ class RecordUpdater:
         if database_insert:
             print('Failed OCLC record retrieval count: ' + str(self.failed_oclc_lookup_count))
         print()
-        self.update_policy.print_online_record_counts()
+        if self.update_policy:
+            self.update_policy.print_online_record_counts()
 
     def __get_oclc_response(self, oclc_number, cursor, database_insert):
         """
@@ -511,11 +525,11 @@ class RecordUpdater:
                     if len(field_move) == 2:
                         self.__conditional_move_field(record, field_move[0], field_move[1], oclc_response)
                     else:
-                        print("Something is wrong with the conditional move array.")
+                        print("Something is wrong with the conditional move configuration.")
 
     def __replace_control_field(self, record, replacement_field, oclc_response):
         """
-        Updates the record control fields using OCLC XML response.
+        Updates record control field using OCLC response.
 
         :param record: the pymarc Record
         :param replacement_field: the field to replace
@@ -653,9 +667,10 @@ class RecordUpdater:
         :param oclc_response: the reponse from OCLC
         :return:
         """
-
         if not self.replacement_strategy:
             print('WARNING: You have not defined a replacement strategy.')
+            print('Using default strategy.')
+
         # Assure OCLC values are in 001 and 003. Alma load will generate 035.
         # Do this after title validation.
         if oclc_001_value:
@@ -671,7 +686,15 @@ class RecordUpdater:
         self.__replace_leader(record, oclc_response)
         self.updated_leader_count += 1
 
-        if self.replacement_strategy == 'replace_only':
+        if self.replacement_strategy == 'replace_and_add':
+            # This strategy replaces and adds new fields if they exist in the OCLC data.
+            for sub in substitution_array:
+                if self.__is_control_field(sub):
+                    self.__replace_control_field(record, sub, oclc_response)
+                else:
+                    self.__data_field_update(record, sub, oclc_response)
+
+        elif self.replacement_strategy == 'replace_only':
             # This strategy only replaces fields that already exist in the record.
             fields = record.get_fields()
 
@@ -682,10 +705,4 @@ class RecordUpdater:
                     else:
                         self.__data_field_update(record, field.tag, oclc_response)
 
-        elif self.replacement_strategy == 'replace_and_add':
-            # This strategy replaces and adds new fields if they exist in the OCLC record.
-            for sub in substitution_array:
-                if self.__is_control_field(sub):
-                    self.__replace_control_field(record, sub, oclc_response)
-                else:
-                    self.__data_field_update(record, sub, oclc_response)
+
