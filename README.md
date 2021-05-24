@@ -50,7 +50,8 @@ optional arguments:
 
 Example:
 
-process.py --replace-fields --plug-in processors.plugins.lib.lib_policy --track-fields --track-title-matches /home/user/marcfile 
+process.py --replace-fields --plug-in processors.plugins.lib.lib_policy --track-fields 
+--track-title-matches /home/user/marcfile 
 ```
 
 This utility is written to correct problems in records that were exported from the Alexandria ILS.
