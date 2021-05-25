@@ -59,27 +59,27 @@ class RecordUpdater:
         Updates records from input marc file with data obtained
         from OCLC worldcat.  The method takes a substitutions array
         that specifies the fields to be updated.
-        :param file: The marc file (binary)
-        :param plugin: The module to use when modifying records
-        :param database_name: Optional database name
-        :param password: Optional database password
-        :param require_perfect_match: If True a perfect title match with OCLC is required
-        :param title_check: If true will do 245a fuzzy title match
-        :param database_insert: If true insert API repsonse into database
-        :param writer: The output file writer
-        :param unmodified_writer: The output file writer for unmodifed records
-        :param bad_writer: The output file records that cannot be processed
-        :param title_log_writer: The output title for fuzzy matched titles
-        :param oclc_xml_writer: The output file for OCLC xml
-        :param field_audit_writer: The output file tracking field updates
-        :param fuzzy_record_writer: Output pretty records with fuzzy OCLC title match
-        :param updated_online_writer: Output pretty records for updated online items
-        :param unmodified_online_writer: Output pretty records for unmodified online items
-        :param fuzzy_online_writer: Output pretty records for fuzzy online items
-        :param fuzzy_record_writer: Output pretty records with fuzzy OCLC title match
-        :param cancelled_oclc_writer: Outputs 035(z) audit
-        :param oclc_developer_key: The developer key used to query OCLC
-        :param replacement_strategy: strategy used for OCLC replacement values, default is replace_and_add
+        :param file The marc file (binary)
+        :param plugin The module to use when modifying records
+        :param database_name Optional database name
+        :param password Optional database password
+        :param require_perfect_match If True a perfect title match with OCLC is required
+        :param title_check If true will do 245a fuzzy title match
+        :param database_insert If true insert API repsonse into database
+        :param writer The output file writer
+        :param unmodified_writer The output file writer for unmodifed records
+        :param bad_writer The output file records that cannot be processed
+        :param title_log_writer The output title for fuzzy matched titles
+        :param oclc_xml_writer The output file for OCLC xml
+        :param field_audit_writer The output file tracking field updates
+        :param fuzzy_record_writer Output pretty records with fuzzy OCLC title match
+        :param updated_online_writer Output pretty records for updated online items
+        :param unmodified_online_writer Output pretty records for unmodified online items
+        :param fuzzy_online_writer Output pretty records for fuzzy online items
+        :param fuzzy_record_writer Output pretty records with fuzzy OCLC title match
+        :param cancelled_oclc_writer Outputs 035(z) audit
+        :param oclc_developer_key The developer key used to query OCLC
+        :param replacement_strategy strategy used for OCLC replacement values, default is replace_and_add
         :return:
         """
 
