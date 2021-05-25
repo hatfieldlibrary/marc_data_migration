@@ -5,15 +5,49 @@ from processors.plugins.pnca.location_mapper import LocationMapper
 
 class UpdatePolicy:
     """
-    The idiosyncratic parts of the PNCA migration live here.
+    The idiosyncratic parts of our PNCA migration to Alma live here.
     """
+
+    # Initialize electronic record counts
     streaming_video_count = 0
     ebook_count = 0
     online_periodical_count = 0
 
+    # These fields will get the $9local subfield that preserves
+    # the local field when importing to Alma.
+    local_fields = ['590',
+                    '591',
+                    '690',
+                    '852',
+                    '900',
+                    '901',
+                    '902',
+                    '909',
+                    '910',
+                    '913',
+                    '917',
+                    '918',
+                    '921',
+                    '936',
+                    '938',
+                    '940',
+                    '945',
+                    '962',
+                    '966',
+                    '970',
+                    '971',
+                    '975',
+                    '987',
+                    '989',
+                    '991',
+                    '994',
+                    '995',
+                    '998',
+                    '999']
+
     def execute(self, record, identifier):
         """
-        Executes record updates.
+        Executes the record updates for this plugin.
         :param record: pymarc record
         :param identifier: the OCLC identifier
         :return:
@@ -28,7 +62,7 @@ class UpdatePolicy:
         """
         Implement this method if you need to preserve information by moving
         it to a local field when the information was not replaced by data in
-        the OCLC response.
+        the OCLC response. Called by the OCLC field replacement task.
         :return: An array of string arrays that contain the original tag and
         the new target field.
         """
@@ -40,7 +74,8 @@ class UpdatePolicy:
     def is_online(self, record):
         """
         The hook for electronic records in our current
-        input data is the 900 field.
+        input data is the 900 field. Called by OCLC replacement
+        and modify record tasks.
         :param record: a pymarc record
         :return: True if record is electronic
         """
@@ -64,6 +99,12 @@ class UpdatePolicy:
         return False
 
     def print_online_record_counts(self):
+        """
+        Displays the counts of electronic record types. This can
+        be called by other tasks to report on the types of records
+        identified by is_online().
+        :return:
+        """
         print('Ebook record count: ' + str(self.ebook_count))
         print('Online periodical record count: ' + str(self.online_periodical_count))
         print('Streaming video record count: ' + str(self.streaming_video_count))
@@ -72,54 +113,15 @@ class UpdatePolicy:
 
     def __add_local_field_note(self, record):
         """
-        Alma NZ will preserve local fields when they are
-        labelled with subfield 9 equal to 'local'.
+        Alma NZ will preserve local fields that are
+        labelled with subfield 9 'local'. The fields
+        are listed in the fields array.
         :param record: pymarc record
         :return:
         """
-        # List of PNCA local fields to preserve is kept here.
-        fields = self.__get_local_fields()
-        for field in fields:
+        for field in self.local_fields:
             for rec_field in record.get_fields(field):
                 rec_field.add_subfield('9', 'local')
-
-    @staticmethod
-    def __get_local_fields():
-        """
-        Fields that should be marked as local before importing into Alma.
-        :return: string array
-        """
-        fields = ['590',
-                  '591',
-                  '690',
-                  '852',
-                  '900',
-                  '901',
-                  '902',
-                  '909',
-                  '910',
-                  '913',
-                  '917',
-                  '918',
-                  '921',
-                  '936',
-                  '938',
-                  '940',
-                  '945',
-                  '962',
-                  '966',
-                  '970',
-                  '971',
-                  '975',
-                  '987',
-                  '989',
-                  '921',
-                  '991',
-                  '994',
-                  '995',
-                  '998',
-                  '999']
-        return fields
 
     @staticmethod
     def __add_inventory(record):
@@ -161,9 +163,9 @@ class UpdatePolicy:
         :return:
         """
         location_mapper = LocationMapper()
-        location_field = self.__get_852b(record)
         # This is a hack for locations that can't be determined by
         # using the PNCA call number.
+        location_field = self.__get_852b(record)
         if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
             try:
                 location = location_mapper.get_location(location_field)
@@ -183,7 +185,7 @@ class UpdatePolicy:
                 try:
                     location = location_mapper.get_location_by_callnumber(call_number)
                     if location:
-                        self.__add_location_to_record(record, location)
+                        self.__replace_location(record, location)
                 except Exception as err:
                     print('error adding location field.')
                     print(err)
@@ -241,7 +243,10 @@ class UpdatePolicy:
     @staticmethod
     def __add_location_to_record(record, location):
         """
-        Adds 852(b) to the record
+        Adds 852(b) to the record. It turns out that this
+        is dangerous since a few PNCA records already have
+        an 852(b) and leaving it in the record will trip up
+        the Alma import.
         :param record: pymarc record
         :param location: location code
         :return:

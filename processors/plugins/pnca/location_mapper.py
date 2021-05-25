@@ -3,7 +3,7 @@ import re
 
 class LocationMapper:
     """
-    Class for PNCA call number mapping.
+    PNCA call number to location code mapping.
     """
 
     mapping = {
