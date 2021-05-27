@@ -1,7 +1,16 @@
 # Record Modification Tool
 
-Python modules created for migration of Pacific Northwest College of Art records to 
+Python modules created for migration of Pacific Northwest College of Art (PNCA) records to 
 Alma (Orbis-Cascade Alliance SLIS).
+
+The main features are:
+
+* Replacing fields with OCLC data based on OCLC number lookup and exact or fuzzy
+matching on the item title.
+* Modifying existing records with specific transformation rules.
+* Creating plugins that define the rules for transformations.
+
+I created a plugin module for our PNCA data and a sample starter plugin for adding a new record update policy.
 
 ```
 usage: processor.py [-h] [-p plugin] [-m] [-r] [-pm] [-db database name] [-di]
