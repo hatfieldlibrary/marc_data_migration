@@ -63,11 +63,8 @@ process.py --replace-fields --plug-in processors.plugins.lib.lib_policy --track-
 --track-title-matches /home/user/marcfile 
 ```
 
-This utility is written to correct problems in records that were exported from the Alexandria ILS.
-These problems included bad character encoding and invalid control fields. 
-
-The primary goal is preparing records for addition to the Alma (ExLibris) _Network Zone_.
-This utility also moves existing data to local fields that will be maintained after Alma ingest. 
+We are using this utility to correct problems in records that were exported from the Alexandria ILS.
+The problems included bad character encoding and invalid control fields.
 
 When the `--replace-fields` argument is provided, the OCLC API is queried (an OCLC developer key is required). 
 The utility will update any field in the `substitutions` list with corresponding data from the OCLC record.
