@@ -1,4 +1,7 @@
+import datetime
 import re
+
+from pymarc import Field
 
 from processors.plugins.pnca.location_mapper import LocationMapper
 
@@ -8,10 +11,17 @@ class UpdatePolicy:
     The idiosyncratic parts of our PNCA migration to Alma live here.
     """
 
+    dt = datetime.datetime.now()
+    mat_type_log_writer = open('output/audit/mat-type-analysis-' + str(dt) + '.txt', 'w')
+
     # Initialize electronic record counts
     streaming_video_count = 0
     ebook_count = 0
     online_periodical_count = 0
+
+    pnca_id_counter = 100
+
+    ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
     # These fields will get the $9local subfield that preserves
     # the local field when importing to Alma.
@@ -56,6 +66,7 @@ class UpdatePolicy:
         self.__add_inventory(record)
         self.__add_funds(record)
         self.__add_local_field_note(record)
+        self.__set_pnca_id(record)
 
     @staticmethod
     def conditional_move_tags():
@@ -110,6 +121,79 @@ class UpdatePolicy:
         print('Streaming video record count: ' + str(self.streaming_video_count))
         total_electronic_records = self.streaming_video_count + self.ebook_count + self.online_periodical_count
         print('Total electronic records: ' + str(total_electronic_records))
+
+    def analyze_type(self, record, type):
+        """
+        Adding this method to PNCA plugin so we can check material types.
+        :param record: pymarc record
+        :param type: indicates oclc modification status
+        :return:
+        """
+        pnca_call_number = self.__get_call_number(record)
+        subfield_300a = self.__get_subfield_300a(record)
+        title = record.title()
+        if subfield_300a is not None and pnca_call_number is not None:
+
+            if "audio" in subfield_300a.lower() and "cdrom" not in pnca_call_number.lower() and "cd-rom" \
+                    not in pnca_call_number.lower():
+                if not re.match('^cd\s', pnca_call_number.lower()):
+                    self.mat_type_log_writer.write(pnca_call_number + "\t" + subfield_300a + "\t" + type +
+                                                   "\t" + title + "\n")
+
+            if "video" in pnca_call_number.lower():
+                if "videocassette" not in subfield_300a.lower() and "videorecording" not in subfield_300a.lower():
+                    self.mat_type_log_writer.write(pnca_call_number + "\t" + subfield_300a + "\t" + type +
+                                                   "\t" + title + "\n")
+
+            if "dvd" in pnca_call_number.lower():
+                if "videodisc" not in subfield_300a.lower() and "dvd" not in subfield_300a.lower():
+                    self.mat_type_log_writer.write(pnca_call_number + "\t" + subfield_300a + "\t" + type +
+                                                   "\t" + title + "\n")
+
+            if "cdrom" in pnca_call_number.lower():
+                if "cd-rom" not in subfield_300a.lower() and "cdrom" not in subfield_300a.lower() and "optical" \
+                        not in subfield_300a.lower():
+                    self.mat_type_log_writer.write(pnca_call_number + "\t" + subfield_300a + "\t" + type +
+                                                   "\t" + title + "\n")
+
+            if "cd-rom" in pnca_call_number.lower():
+                if "cd-rom" not in subfield_300a.lower() and "cdrom" not in subfield_300a.lower() and "optical" \
+                        not in subfield_300a.lower():
+                    self.mat_type_log_writer.write(pnca_call_number + "\t" + subfield_300a + "\t" + type +
+                                                   "\t" + title + "\n")
+
+    def __set_pnca_id(self, record):
+        to_update = False
+        field003arr = record.get_fields('003')
+        if len(field003arr) > 0:
+            field003 = field003arr[0].value()
+            if field003 == 'COMPanion' or field003 == 'CStRLIN' or field003 == 'DSS'\
+                    or field003 == '':
+                field003 = 'PNCA'
+                to_update = True
+                self.pnca_id_counter += 1
+        else:
+            field003 = 'PNCA'
+            to_update = True
+            self.pnca_id_counter += 1
+        if to_update:
+            record.remove_field('001')
+            record.remove_field('003')
+            new001 = Field(tag='001', data=str(self.pnca_id_counter))
+            new003 = Field(tag='003', data=field003)
+            record.add_ordered_field(new001)
+            record.add_ordered_field(new003)
+
+    @staticmethod
+    def __get_subfield_300a(record):
+        subfield_300a = None
+        field_test = record.get_fields('300')
+        if len(field_test) > 0:
+            field_300 = field_test[0]
+            subfield_300arr = field_300.get_subfields('a')
+            if len(subfield_300arr) > 0:
+                subfield_300a = subfield_300arr[0]
+        return subfield_300a
 
     def __add_local_field_note(self, record):
         """

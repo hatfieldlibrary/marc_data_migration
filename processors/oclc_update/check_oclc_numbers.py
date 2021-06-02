@@ -2,7 +2,7 @@ from urllib.error import HTTPError
 
 from pymarc import MARCReader
 import processors.utils as utils
-from processors.oclc_update.db_connector import DatabaseConnector
+from processors.db_connector import DatabaseConnector
 from processors.oclc_update.oclc_connector import OclcConnector
 import xml.etree.ElementTree as ET
 

@@ -1,5 +1,6 @@
 from pymarc import TextWriter
 
+from processors.reporting.reports import ReportProcessor
 from processors.modify_record.record_modify import RecordModifier
 from processors.oclc_update.check_oclc_numbers import CompareOclcNumbers
 from scripts.duplicate_record_check import CheckDuplicates
@@ -28,6 +29,8 @@ parser.add_argument('-db', '--use-database', metavar='database name', type=str,
 parser.add_argument('-di', '--database-insert', action='store_true',
                     help='Insert records into database while replacing fields with OCLC API data. '
                          'Requires --use-database flag with database name.')
+parser.add_argument("-dup", "--check-duplicate-fields", action="store_true",
+                    help="Check for duplicate 245 fields.")
 parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
                     help='Retrieve OCLC records and compare oclc numbers in '
                          'the response and with the original input file. Logs the discrepancies for analysis.')
@@ -43,6 +46,8 @@ parser.add_argument("-so", "--save-oclc", action="store_true",
 parser.add_argument('-oc', '--oclc-records', action='store_true',
                     help='Only download marcxml from OCLC number, no other '
                          'tasks performed.')
+parser.add_argument("-cfdb", "--load-control-field-db", action="store_true",
+                    help="This will load a postgres database for use in control field analysis.")
 parser.add_argument('-d', '--duplicates', action='store_true',
                      help='Checks for duplicate OCLC numbers in the database.')
 
@@ -58,6 +63,14 @@ if not source:
 database_name = args.use_database
 # if database requires password replace empty string
 password = 'Sibale2'
+
+if args.load_control_field_db:
+    reporter = ReportProcessor()
+    reporter.load_database(source, password)
+
+if args.check_duplicate_fields:
+    reporter = ReportProcessor()
+    reporter.report_dup_245(source)
 
 if args.compare_oclc_numbers:
     writer = open('output/audit/oclc-number-comparison-' + str(dt) + '.csv', 'w')
