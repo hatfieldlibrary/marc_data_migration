@@ -9,7 +9,7 @@ from pymarc import Field, Leader, TextWriter
 from processors.oclc_update.add_response_to_database import DatabaseUpdate
 from processors.oclc_update.field_generators import ControlFieldGenerator, DataFieldGenerator
 from processors.oclc_update.oclc_connector import OclcConnector
-from processors.oclc_update.db_connector import DatabaseConnector
+from processors.db_connector import DatabaseConnector
 from processors.oclc_update.replace_configuration import substitution_array
 from processors.read_marc import MarcReader
 import processors.oclc_update.field_replacement_count as field_count
@@ -226,16 +226,15 @@ class RecordUpdater:
                     if utils.verify_oclc_response(oclc_response, title, None, record.title(),
                                                   input_oclc_number, title_check, require_perfect_match):
 
-                        self.replace_fields(oclc_001_value, record, oclc_response)
-                        if self.update_policy:
-                            self.update_policy.execute(record, oclc_001_value)
-
-                        modified_count += 1
-
+                        self.process_oclc_match(record, oclc_response, oclc_001_value)
+                        self.__material_type_analysis(record, 'updated_with_perfect_match')
+                        # output
                         if is_online:
                             updated_online_writer.write(record)
                         else:
                             writer.write(record)
+
+                        modified_count += 1
 
                     # When "require_perfect_match" is True make substitutions for records
                     # with an imperfect OCLC title match. These records will be written to a
@@ -243,16 +242,11 @@ class RecordUpdater:
 
                     elif oclc_response is not None and require_perfect_match:
 
-                        field_generator = DataFieldGenerator()
-
                         # Write the original version of the record to a separate output
                         # file so the original is available to the reviewer.
                         original_fuzzy_writer.write(record)
 
-                        # Next, replace fields with OCLC data.
-                        self.replace_fields(oclc_001_value, record, oclc_response)
-
-                        # Now test the OCLC response with allowance for fuzzy matches on the title.
+                        # Test the OCLC response for fuzzy matches on the title.
                         # The minimum match ratio is defined in the FuzzyMatcher class. Adjust the
                         # ratio to increase or decrease the number of records that "pass".
                         #
@@ -264,32 +258,22 @@ class RecordUpdater:
 
                         if utils.verify_oclc_response(oclc_response, title, title_log_writer, record.title(),
                                                       input_oclc_number, title_check, False):
-                            field = field_generator.create_data_field('962', [0, 0],
-                                                                      'a', 'fuzzy-match-passed')
-                            record.add_ordered_field(field)
-                            if self.update_policy:
-                                self.update_policy.execute(record, oclc_001_value)
-
-                            if is_online:
-                                fuzzy_online_writer.write(record)
-                            else:
-                                fuzzy_record_writer.write(record)
+                            self.process_oclc_match(record, oclc_response, oclc_001_value, 'fuzzy-match-passed')
+                            self.__material_type_analysis(record, 'updated_with_fuzzy_match')
 
                         # For records that to not meet the title threshold, add the corresponding 962 field
                         # label to the record. Many records that "fail" will be valid OCLC responses. This
                         # label allows the reviewer to review records with the greatest title variance.
 
                         else:
-                            field = field_generator.create_data_field('962', [0, 0],
-                                                                      'a', 'fuzzy-match-failed')
-                            record.add_ordered_field(field)
-                            if self.update_policy:
-                                self.update_policy.execute(record, oclc_001_value)
+                            self.process_oclc_match(record, oclc_response, oclc_001_value, 'fuzzy-match-failed')
+                            self.__material_type_analysis(record, 'updated_with_fuzzy_match')
 
-                            if is_online:
-                                fuzzy_online_writer.write(record)
-                            else:
-                                fuzzy_record_writer.write(record)
+                        # output
+                        if is_online:
+                            fuzzy_online_writer.write(record)
+                        else:
+                            fuzzy_record_writer.write(record)
 
                         fuzzy_record_count += 1
                         modified_count += 1
@@ -297,7 +281,6 @@ class RecordUpdater:
                     # Records with no OCLC response can be modified as-is and written to a separate file.
 
                     else:
-                        unmodified_count += 1
 
                         if self.update_policy:
                             for field_move in self.update_policy.conditional_move_tags():
@@ -305,11 +288,14 @@ class RecordUpdater:
                                     # There was no OCLC response, so this move is not conditional.
                                     self.__move_field(record, field_move[0], field_move[1])
                             self.update_policy.execute(record, oclc_001_value)
+                            self.__material_type_analysis(record, 'unmodified_records')
 
                         if is_online:
                             unmodified_online_writer.write(record)
                         else:
                             unmodified_writer.write(record)
+
+                        unmodified_count += 1
 
                 except HTTPError as err:
                     print(err)
@@ -373,6 +359,38 @@ class RecordUpdater:
             oclc_response = self.__get_oclc_api_response(oclc_number)
 
         return oclc_response
+
+    def process_oclc_match(self, record, oclc_response, field_001, status=None):
+        """
+        Updates record using the OCLC response and applies local
+        update policy if a plugin was provided.
+        :param record: pymarc record
+        :param oclc_response: oclc xml response
+        :param field_001: oclc 001 field value
+        :param status: Indicates status if fuzzy match
+        :return:
+        """
+        # replace fields
+        self.replace_fields(field_001, record, oclc_response)
+        # add fuzzy match status label
+        if status is not None:
+            field_generator = DataFieldGenerator()
+            field = field_generator.create_data_field('962', [0, 0], 'a', status)
+            record.add_ordered_field(field)
+        # apply plugin policy
+        if self.update_policy:
+            self.update_policy.execute(record, field_001)
+
+    def __material_type_analysis(self, record, output_file):
+        """
+        Applies optional material type analysis if plugin was
+        provided.
+        :param record: pymarc record
+        :param output_file: a label for the output file used for this record
+        :return:
+        """
+        if self.update_policy:
+            self.update_policy.analyze_type(record, output_file)
 
     def __get_field_text(self, field, oclc_response):
         """
@@ -704,5 +722,3 @@ class RecordUpdater:
                         self.__replace_control_field(record, field.tag, oclc_response)
                     else:
                         self.__data_field_update(record, field.tag, oclc_response)
-
-
