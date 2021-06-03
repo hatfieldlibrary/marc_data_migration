@@ -2,7 +2,7 @@ import datetime
 
 from pymarc import MARCReader
 
-from processors.oclc_update.db_connector import DatabaseConnector
+from processors.db_connector import DatabaseConnector
 from processors import utils
 
 

@@ -1,5 +1,5 @@
 import lxml.etree as ET
-from processors.oclc_update.db_connector import DatabaseConnector
+from processors.db_connector import DatabaseConnector
 
 db_connect = DatabaseConnector()
 conn = db_connect.get_connection('pnca', 'Sibale2')

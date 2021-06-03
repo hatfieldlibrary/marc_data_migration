@@ -1,6 +1,6 @@
 import datetime
 
-from processors.oclc_update.db_connector import DatabaseConnector
+from processors.db_connector import DatabaseConnector
 
 dt = datetime.datetime.now()
 

@@ -16,7 +16,6 @@ def get_original_title(record):
             subfields = field.subfields_as_dict()
             for key in subfields:
                 if key == 'a' or key == 'b':
-                #if key == 'a' or key == 'b' or key == 'c':
                     title += ' ' + subfields[key][0]
 
     return title
@@ -31,11 +30,12 @@ def remove_control_chars(field):
 
 def get_oclc_001_value(field_001, field_003):
     """
-    Returns value from the 001 field. The value is first checked to
-    see if it's an OCLC number.  The criteria are:
+    Returns value from the 001 field if it's an OCLC number.
+    The criteria for determining OCLC identifiers are:
 
-        The 001 value begins with ocn, ocm, or on.
-        The 003 field contains the OCoLC group identifier
+        The 001 value begins with 'ocn', 'ocm', or 'on'
+        OR the 003 field contains the OCoLC group identifier
+        AND the value is a valid OCLC number format.
 
     :param: field_001 The 001 pymarc Field
     :param: field_003 The 003 pymarc Field
@@ -50,16 +50,21 @@ def get_oclc_001_value(field_001, field_003):
         value_003 = field_003.value()
 
     if value_001:
+        # set 001 if oclc prefix is prepended
         if 'ocn' in value_001 or 'ocm' in value_001 or 'on' in value_001:
             final_value_001 = value_001.replace('ocn', '').replace('ocm', '').replace('on', '')
-    elif value_003:
-        if 'OCoLC' in value_003:
-            final_value_001 = value_001
+        elif value_003:
+            # if no oclc prefix, check 003 for oclc label
+            if 'OCoLC' in value_003:
+                final_value_001 = value_001
+
     if final_value_001 is not None:
+        # verify that we have a valid oclc number format.
         if valid_format_regex.match(final_value_001):
             final_value_001 = remove_control_chars(final_value_001)
             return final_value_001
-    return final_value_001
+
+    return None
 
 
 def get_oclc_035_value(field_035):
@@ -120,20 +125,20 @@ def normalize_title(title):
     # ignore end-of-field punctuation
     end_of_line_substitution = re.compile('[\W|\\t]+')
     # remove spaces from comparison
-    normalization = re.compile('\s+')
-    title1 = re.sub(end_of_line_substitution, '', title)
-    title2 = re.sub(normalization, '', title1)
-    return title2
+    # normalization = re.compile('\s+')
+    title = re.sub(end_of_line_substitution, '', title)
+    # title = re.sub(normalization, '', title)
+    return title
 
 
 def verify_oclc_response(oclc_response, title, title_log_writer, input_title, current_oclc_number, title_check,
                          require_perfect_match):
     """
     Verifies that the 245 subfield a and b values in the OCLC response
-    the OCLC response match the expected value for the current record.
-    This uses a fuzzy match to allow for errors in the
-    original record. If you need an exact match,
-    adjust the fuzzy matching threshold to be 100.
+    match the expected value in the current record. This uses a fuzzy
+    match based on Levenshtein distance, originally to
+    account for diacritics issues. If you need an
+    exact match, adjust the matching threshold to be 100.
 
     :param oclc_response: The XML root Element
     :param title: The record title 245(a),(b)

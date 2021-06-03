@@ -4,6 +4,7 @@ import re
 from pymarc import Field
 
 from processors.plugins.pnca.location_mapper import LocationMapper
+import processors.utils as utils
 
 
 class UpdatePolicy:
@@ -57,7 +58,7 @@ class UpdatePolicy:
 
     def execute(self, record, identifier):
         """
-        Executes the record updates for this plugin.
+        Executes the record update policy for this plugin.
         :param record: pymarc record
         :param identifier: the OCLC identifier
         :return:
@@ -72,10 +73,10 @@ class UpdatePolicy:
     def conditional_move_tags():
         """
         Implement this method if you need to preserve information by moving
-        it to a local field when the information was not replaced by data in
+        it to a local field when the field was not replaced by data from
         the OCLC response. Called by the OCLC field replacement task.
-        :return: An array of string arrays that contain the original tag and
-        the new target field.
+        :return: An array of string arrays that indicate the original tag and
+        the new local target field.
         """
         # return []
         field1 = ['500', '591']
@@ -163,22 +164,40 @@ class UpdatePolicy:
                                                    "\t" + title + "\n")
 
     def __set_pnca_id(self, record):
+        """
+        PNCA 001 and 003 control fields include a lot of
+        duplicates. These need to be replaced to the extent possible.
+        This function replaces the 003 with a PNCA label and assigns a unique,
+        incremented value to 001 whenever conditions are met.
+        :param record: pymarc record
+        :return:
+        """
         to_update = False
         field003arr = record.get_fields('003')
+        field001arr = record.get_fields('001')
         if len(field003arr) > 0:
             field003 = field003arr[0].value()
+            # always replace these
             if field003 == 'COMPanion' or field003 == 'CStRLIN' or field003 == 'DSS'\
-                    or field003 == '':
+                    or field003 == 'DLC' or field003 == '':
                 field003 = 'PNCA'
                 to_update = True
                 self.pnca_id_counter += 1
+            # replace if non-valid OCLC number
+            if field003 == 'OCoLC':
+                if len(field001arr) > 0:
+                    if utils.get_oclc_001_value(field001arr[0], field003arr[0]) is None:
+                        field003 = 'PNCA'
+                        to_update = True
+                        self.pnca_id_counter += 1
         else:
+            # add if record has no 003 field
             field003 = 'PNCA'
             to_update = True
             self.pnca_id_counter += 1
         if to_update:
-            record.remove_field('001')
-            record.remove_field('003')
+            record.remove_fields('001')
+            record.remove_fields('003')
             new001 = Field(tag='001', data=str(self.pnca_id_counter))
             new003 = Field(tag='003', data=field003)
             record.add_ordered_field(new001)

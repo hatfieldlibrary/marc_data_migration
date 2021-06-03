@@ -3,13 +3,17 @@ from fuzzywuzzy import fuzz
 
 class FuzzyMatcher:
 
+    # Because of wide variation in cataloging practice
+    # Levenshtein distance is not a good tool. Ultimately,
+    # the score is of some interest, but all records
+    # require review.
     default_ratio = 50
 
     @staticmethod
     def __log_fuzzy_matches(orig1, orig2, value1, value2, match_ratio,
                             ratio, current_oclc_number, title_log_writer):
         """
-        Logs matches and match ratios.
+        Logs matches and match ratios for later review.
 
         :param orig1: original title without normalization
         :param orig2: oclc title without normalization
@@ -52,9 +56,7 @@ class FuzzyMatcher:
         :param title_log_writer: fuzzy log file handle
         :return: true for match
         """
-        # token sort used for fuzzy output records.
-        # output is based on sorted tokens better handles variations in word order
-        # this seems to be a fairly common in 245 subfields
+        # Sorted tokens better handle variations in word order.
         match_ratio = fuzz.token_sort_ratio(value1, value2)
         # Log all matches that are not exact.
         if match_ratio < 100:
