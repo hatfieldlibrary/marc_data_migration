@@ -13,8 +13,9 @@ matching on the item title.
 I created a plugin module for our PNCA data and a sample starter plugin for adding a new record update policy.
 
 ```
-usage: processor.py [-h] [-p plugin] [-m] [-r] [-pm] [-db database name] [-di]
-                    [-comp] [-nt] [-t] [-tm] [-so] [-oc] [-d]
+usage: processor.py [-h] [-p module name] [-m] [-r] [-pm] [-db database name]
+                    [-di] [-nt] [-t] [-tm] [-so] [-oc] [-ccf] [-d] [-dupt]
+                    [-dupm] [-comp]
                     source
 
 Process marc records.
@@ -40,10 +41,6 @@ optional arguments:
                         Insert records into database while replacing fields
                         with OCLC API data. Requires --use-database flag with
                         database name.
-  -comp, --compare_oclc_numbers
-                        Retrieve OCLC records and compare oclc numbers in the
-                        response and with the original input file. Logs the
-                        discrepancies for analysis.
   -nt, --no-title-check
                         Skip the fuzzy title match on 245 fields before
                         updating records. You probably do not want to do this.
@@ -54,9 +51,18 @@ optional arguments:
                         running the replacement task.
   -oc, --oclc-records   Only download marcxml from OCLC number, no other tasks
                         performed.
+  -ccf, --check-control-field-db
+                        Reports duplicate 001/003 combinations.
   -d, --duplicates      Checks for duplicate OCLC numbers in the database.
-  
-
+  -dupt, --check-duplicate-title
+                        Check for duplicate 245 fields.
+  -dupm, --check-duplicate-main
+                        Check for duplicate main entry fields.
+  -comp, --compare_oclc_numbers
+                        Retrieve OCLC records and compare oclc numbers in the
+                        response and with the original input file. Logs the
+                        discrepancies for analysis.
+                        
 Example:
 
 process.py --replace-fields --plug-in processors.plugins.lib.lib_policy --track-fields 
