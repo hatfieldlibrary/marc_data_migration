@@ -5,7 +5,7 @@ class FuzzyMatcher:
 
     # Because of wide variation in cataloging practice
     # Levenshtein distance is not a good tool. Ultimately,
-    # the score is of some interest, but all records
+    # the score is of some value, but all records
     # require review.
     default_ratio = 50
 
@@ -84,6 +84,7 @@ class FuzzyMatcher:
         """
         match_ratio = fuzz.ratio(value1, value2)
 
+        # log all matches that aren't perfect
         if match_ratio < 100:
             if title_log_writer is not None:
                 self.__log_fuzzy_matches(orig1, orig2, value1, value2, match_ratio, ratio,

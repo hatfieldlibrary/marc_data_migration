@@ -316,9 +316,9 @@ class RecordUpdater:
         if conn is not None:
             conn.close()
 
-        print('Modified record count: ' + str(modified_count))
-        print('Unmodified record count: ' + str(unmodified_count))
-        print('Fuzzy record count: ' + str(fuzzy_record_count))
+        print('Total modified records count: ' + str(modified_count))
+        print('Unmodified records count: ' + str(unmodified_count))
+        print('Records modified using fuzzy match: ' + str(fuzzy_record_count))
         print('Bad record count: ' + str(bad_record_count))
         print()
 

@@ -122,12 +122,12 @@ def get_oclc_node(oclc_response):
 
 
 def normalize_title(title):
-    # ignore end-of-field punctuation
+    # remove non-characters
     end_of_line_substitution = re.compile('[\W|\\t]+')
-    # remove spaces from comparison
-    # normalization = re.compile('\s+')
+    # remove spaces
+    start_of_line_substitution = re.compile('\s+')
     title = re.sub(end_of_line_substitution, '', title)
-    # title = re.sub(normalization, '', title)
+    title = re.sub(start_of_line_substitution, '', title)
     return title
 
 
