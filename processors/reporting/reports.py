@@ -4,6 +4,7 @@ from pymarc import TextWriter
 
 from processors.db_connector import DatabaseConnector
 from processors.read_marc import MarcReader
+import json
 
 
 class ReportProcessor:
@@ -21,16 +22,51 @@ class ReportProcessor:
         :param password: the database password
         :return:
         """
+        dup_writer = open('output/audit/duplicate_control_fields-' + str(self.dt) + '.txt', 'w')
         print('Loading database.  This will take a few minutes.')
         self.__load_database(file, password)
         print('Database is loaded. Creating report.')
         database = DatabaseConnector()
         conn = database.get_connection('duplicatetest', password)
         cursor = conn.cursor()
-        cursor.execute('SELECT field001, field003, count(*) FROM recs GROUP BY field001, field003 HAVING count(*) > 1')
+        cursor.execute('SELECT field001, field003, count(*) FROM recs '
+                       'GROUP BY field001, field003 HAVING count(*) > 1')
         rows = cursor.fetchall()
         for row in rows:
-            print(row)
+            field001 = row[0]
+            field003 = row[1]
+            cursor.execute('SELECT record from recs where field001=%s and field003=%s', (field001, field003))
+            duplicate_count = str(row[2])
+            recs = cursor.fetchall()
+            for rec in recs:
+                j = ''.join(rec)
+                marc = json.loads(j)
+                fields = (marc['fields'])
+                field852 = list(filter(lambda f: '852' in f.keys(), fields))
+                for field in field852:
+                    subs = field['852']['subfields']
+                    for sub in subs:
+                        if 'h' in sub.keys():
+                            callnumber = sub['h']
+                        if 'p' in sub.keys():
+                            barcode = sub['p']
+
+                field245 = list(filter(lambda f: '245' in f.keys(), fields))
+                for field in field245:
+                    subs = field['245']['subfields']
+                    for sub in subs:
+                        if 'a' in sub.keys():
+                            title = sub['a']
+                        if 'b' in sub.keys():
+                            title += ' ' + sub['b']
+
+                dup_writer.write(duplicate_count + '\t' + title + '\t' + callnumber + '\t' + barcode + '\t' + field001 +
+                             '\t' + field003 + '\n')
+
+        print('See: output/audit/duplicate_control_fields-' + str(self.dt) + '.txt')
+
+        cursor.close()
+        conn.close()
 
     @staticmethod
     def __load_database(file, password):
@@ -63,8 +99,8 @@ class ReportProcessor:
                     field003 = field003arr[0].value()
 
                 try:
-                    cursor.execute('INSERT INTO recs (field001, field003)  VALUES (%s, %s)',
-                                   (field001, field003))
+                    cursor.execute('INSERT INTO recs (field001, field003, record)  VALUES (%s, %s, %s)',
+                                   (field001, field003, record.as_json()))
                     conn.commit()
                 except Exception as err:
                     print(err)

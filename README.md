@@ -72,7 +72,7 @@ process.py --replace-fields --plug-in processors.plugins.lib.lib_policy --track-
 We are using this utility to correct problems in records that were exported from the Alexandria ILS.
 The problems included bad character encoding and invalid control fields.
 
-When the `--replace-fields` argument is provided, the OCLC API is queried (an OCLC developer key is required). 
+When you provide the `--replace-fields` argument, the OCLC API is queried (an OCLC developer key is required). 
 The utility will update any field in the `substitutions` list with corresponding data from the OCLC record.
 
 Using the OCLC API is time-consuming. Running with the `--database-name` and `--database-insert` arguments will insert
