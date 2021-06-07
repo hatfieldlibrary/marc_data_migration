@@ -52,7 +52,7 @@ class RecordUpdater:
                                  updated_online_writer,
                                  unmodified_online_writer,
                                  fuzzy_online_writer,
-                                 cancelled_oclc_writer,
+                                 field_035_details_writer,
                                  oclc_developer_key,
                                  replacement_strategy='replace_and_add'):
         """
@@ -77,7 +77,7 @@ class RecordUpdater:
         :param unmodified_online_writer Output pretty records for unmodified online items
         :param fuzzy_online_writer Output pretty records for fuzzy online items
         :param fuzzy_record_writer Output pretty records with fuzzy OCLC title match
-        :param cancelled_oclc_writer Outputs 035(z) audit
+        :param field_035_details_writer Outputs 035(z) audit
         :param oclc_developer_key The developer key used to query OCLC
         :param replacement_strategy strategy used for OCLC replacement values, default is replace_and_add
         :return:
@@ -155,9 +155,8 @@ class RecordUpdater:
                     if len(record.get_fields('001')) == 1:
                         field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                     if len(record.get_fields('035')) > 0:
-                        # Note: side effect of this method call is logging 035(z) subfields
-                        # to the cancelled_oclc_writer file handle.
-                        field_035 = self.__get_035_value(record, cancelled_oclc_writer)
+                        field_035 = utils.get_035(record)
+                        utils.log_035_details(record.get_fields('035'), record.title(), field_035_details_writer)
 
                 except Exception as err:
                     print('error reading fields from input record.')
@@ -623,27 +622,6 @@ class RecordUpdater:
             oclc_response = None
 
         return oclc_response
-
-    @staticmethod
-    def __get_035_value(record, cancelled_oclc_writer):
-        """
-        Returns value of OCLC 035 field. Side effects are logging
-        subfield z's and printing a notice when a duplicate 035(a)
-        is encountered.
-        :param record: record node
-        :return: 035 value
-        """
-        field_035 = None
-        if len(record.get_fields('035')) > 0:
-            fields = record.get_fields('035')
-            for field in fields:
-                subfields = field.get_subfields('a')
-                if len(subfields) > 1:
-                    print('duplicate 035a')
-                elif len(subfields) == 1:
-                    field_035 = utils.get_oclc_035_value(subfields[0])
-                    utils.log_035z(record['035'], field_035, cancelled_oclc_writer)
-        return field_035
 
     def __database_insert(self, cursor, conn, field, oclc_field, oclc_response, title):
         """

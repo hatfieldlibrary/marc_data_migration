@@ -148,7 +148,7 @@ if args.replace_fields:
     oclc_xml_writer = None
     field_substitution_audit_writer = None
 
-    cancelled_log_writer = open('output/audit/cancelled-oclc-' + str(dt) + '.txt', 'w')
+    field_035_details_writer = open('output/audit/field-035-details-' + str(dt) + '.txt', 'w')
 
     # optional report on fuzzy title matching for most current OCLC harvest
     if args.track_title_matches:
@@ -184,7 +184,7 @@ if args.replace_fields:
                                      updated_online_writer,
                                      unmodified_online_writer,
                                      fuzzy_online_writer,
-                                     cancelled_log_writer,
+                                     field_035_details_writer,
                                      oclc_developer_key,
                                      replacement_strategy='replace_and_add')
 

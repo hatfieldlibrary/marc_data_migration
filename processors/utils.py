@@ -23,8 +23,8 @@ def get_original_title(record):
 
 def remove_control_chars(field):
     # Odd thing that is in at least one record. This obviously should never happen.
-    control_character_replacement = re.compile('\s+\d+$')
-    field = re.sub(control_character_replacement, '', field)
+    # control_character_replacement = re.compile('\s+\d+$')
+    # field = re.sub(control_character_replacement, '', field)
     return field
 
 
@@ -67,13 +67,26 @@ def get_oclc_001_value(field_001, field_003):
     return None
 
 
-def get_oclc_035_value(field_035):
+def get_035(record):
+    field_035 = None
+    if len(record.get_fields('035')) > 0:
+        fields = record.get_fields('035')
+        for field in fields:
+            subfields = field.get_subfields('a')
+            if len(subfields) > 1:
+                print('duplicate 035a')
+            elif len(subfields) == 1:
+                field_035 = __get_oclc_035_value(subfields[0])
+    return field_035
+
+
+def __get_oclc_035_value(field_035):
     """
     Returns value from the 035 field. Verifies that
     the field contains the (OCoLC) identifier. Removes the
     identifier and returns the OCLC number only.
 
-    :param: field_035 The 035a strng value
+    :param: field_035 The 035a string value
     :return: The 035 value or None if not OCLC record
     """
     if field_035:
@@ -180,19 +193,29 @@ def verify_oclc_response(oclc_response, title, title_log_writer, input_title, cu
         return False
 
 
-def log_035z(field_element, value_035a, writer):
-    for field in field_element.get_subfields('z'):
-        zvalue = get_oclc_035_value(field)
-        try:
-            if zvalue:
-                if value_035a:
-                    writer.write(zvalue + '\t' + value_035a + '\n')
-                else:
-                    writer.write(zvalue + '\tMissing 035(a)\n')
+def log_035_details(fields, title, writer):
+    for field_element in fields:
+        for field in field_element.get_subfields('z'):
+            z_value = __get_oclc_035_value(field)
+            try:
+                if z_value:
+                    writer.write('z\t' + z_value + '\t' + title + '\n')
+            except Exception as err:
+                print('error writing to 035 log.')
+                print(err)
 
-        except Exception as err:
-            print('error writing to z log.')
-            print(err)
+        a_subfield = field_element.get_subfields('a')
+        if len(a_subfield) == 0:
+            writer.write('a missing\t' + ' ' + '\t' + title + '\n')
+        for field in a_subfield:
+            if len(a_subfield) > 1:
+                a_value = __get_oclc_035_value(field)
+                try:
+                    if a_value:
+                        writer.write('a duplicate\t' + a_value + '\t' + title + '\n')
+                except Exception as err:
+                    print('error writing to 035 log.')
+                    print(err)
 
 
 def get_subfields_arr(field):

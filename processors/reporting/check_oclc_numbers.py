@@ -50,13 +50,7 @@ class CompareOclcNumbers:
                         if len(record.get_fields('001')) == 1:
                             field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                         if len(record.get_fields('035')) > 0:
-                            fields = record.get_fields('035')
-                            for field in fields:
-                                subfields = field.get_subfields('a')
-                                if len(subfields) > 1:
-                                    print('duplicate 035a')
-                                elif len(subfields) == 1:
-                                    field_035 = utils.get_oclc_035_value(subfields[0])
+                            field_035 = utils.get_oclc_035(record)
 
                     except Exception as err:
                         print('error reading fields from input record.')
