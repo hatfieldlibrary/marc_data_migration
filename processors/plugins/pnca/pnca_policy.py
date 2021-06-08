@@ -28,6 +28,7 @@ class UpdatePolicy:
     # the local field when importing to Alma.
     local_fields = ['590',
                     '591',
+                    '592',
                     '690',
                     '852',
                     '900',
@@ -66,8 +67,8 @@ class UpdatePolicy:
         self.__add_location(record, identifier)
         self.__add_inventory(record)
         self.__add_funds(record)
-        self.__add_local_field_note(record)
         self.__set_pnca_id(record)
+        self.__add_local_field_note(record)
 
     @staticmethod
     def conditional_move_tags():
@@ -190,6 +191,13 @@ class UpdatePolicy:
                         field003 = 'PNCA'
                         to_update = True
                         self.pnca_id_counter += 1
+                    else:
+                        # If it appears to be valid OCLC number,
+                        # add the 001 value to a local 592 field.
+                        self.__add_592(record, field001arr[0].value())
+                        field003 = 'PNCA'
+                        to_update = True
+                        self.pnca_id_counter += 1
         else:
             # add if record has no 003 field
             field003 = 'PNCA'
@@ -202,6 +210,15 @@ class UpdatePolicy:
             new003 = Field(tag='003', data=field003)
             record.add_ordered_field(new001)
             record.add_ordered_field(new003)
+
+    @staticmethod
+    def __add_592(record, value001):
+        target_field = Field(
+            tag='592',
+            indicators=["", ""],
+            subfields=['a', 'Candidate OCLC number: ' + value001]
+        )
+        record.add_ordered_field(target_field)
 
     @staticmethod
     def __get_subfield_300a(record):

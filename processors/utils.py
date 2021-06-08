@@ -53,7 +53,7 @@ def get_oclc_001_value(field_001, field_003):
         # set 001 if oclc prefix is prepended
         if 'ocn' in value_001 or 'ocm' in value_001 or 'on' in value_001:
             final_value_001 = value_001.replace('ocn', '').replace('ocm', '').replace('on', '')
-        elif value_003:
+        if value_003:
             # if no oclc prefix, check 003 for oclc label
             if 'OCoLC' in value_003:
                 final_value_001 = value_001
@@ -65,6 +65,15 @@ def get_oclc_001_value(field_001, field_003):
             return final_value_001
 
     return None
+
+
+def is_oclc_prefix(field001):
+    """
+    Pymarc Field for 001
+    :param field001: pymarc Field
+    :return: boolean true if field includes an OCLC prefix
+    """
+    return 'ocn' in field001.value() or 'ocm' in field001.value() or 'on' in field001.value()
 
 
 def get_035(record):
@@ -102,7 +111,12 @@ def __get_oclc_035_value(field_035):
     return None
 
 
-def get_oclc_node(oclc_response):
+def get_oclc_title(oclc_response):
+    """
+    Gets the item title from the OCLC XML response.
+    :param oclc_response: XML response
+    :return: an array containing full OCLC title data and data from subfields a and b to use with fuzzy matching.
+    """
     try:
         data_node = oclc_response.find('./*[@tag="245"]/*[@code="a"]', ns)
         data_node2 = oclc_response.find('./*[@tag="245"]/*[@code="b"]', ns)
@@ -144,8 +158,7 @@ def normalize_title(title):
     return title
 
 
-def verify_oclc_response(oclc_response, title, title_log_writer, input_title, current_oclc_number, title_check,
-                         require_perfect_match):
+def verify_oclc_response(oclc_response, title, title_check, require_perfect_match, ratio=50):
     """
     Verifies that the 245 subfield a and b values in the OCLC response
     match the expected value in the current record. This uses a fuzzy
@@ -172,25 +185,42 @@ def verify_oclc_response(oclc_response, title, title_log_writer, input_title, cu
 
     if oclc_response is not None:
         try:
-            title_arr = get_oclc_node(oclc_response)
+            title_arr = get_oclc_title(oclc_response)
             if title_arr is not None:
                 if len(title_arr) == 2:
                     node_text = normalize_title(title_arr[1])
                     pnca_title = normalize_title(title)
                     if require_perfect_match:
                         # This is using ratio 100 so a perfect match is required.
-                        return fuzz.find_match_with_ratio(pnca_title.lower(), node_text.lower(),
-                                                          input_title, title_arr[0], 100, current_oclc_number,
-                                                          title_log_writer)
+                        return fuzz.find_match_with_ratio(pnca_title.lower(), node_text.lower(), 100)
                     else:
-                        # Any match with a ratio greater than the default ratio will pass.
-                        return fuzz.find_match(pnca_title.lower(), node_text.lower(),
-                                               input_title, title_arr[0], current_oclc_number, title_log_writer)
+                        # Any match with a ratio greater than the provided ratio will pass.
+                        return fuzz.find_match_with_ratio(pnca_title.lower(), node_text.lower(), ratio)
 
         except Exception as e:
             print(e)
     else:
         return False
+
+
+def get_fuzzy_match_ratio(oclc_response, title):
+    if oclc_response is not None:
+        try:
+            title_arr = get_oclc_title(oclc_response)
+            if title_arr is not None:
+                if len(title_arr) == 2:
+                    node_text = normalize_title(title_arr[1])
+                    pnca_title = normalize_title(title)
+                    return fuzz.get_ratio(pnca_title.lower(), node_text.lower())
+        except Exception as e:
+            print(e)
+    return None
+
+
+def get_match_ratio(value1, value2):
+    norm1 = normalize_title(value1)
+    norm2 = normalize_title(value2)
+    return fuzz.get_ratio(norm1, norm2)
 
 
 def log_035_details(fields, title, writer):
