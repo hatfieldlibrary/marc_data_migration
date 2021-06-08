@@ -43,7 +43,6 @@ class RecordUpdater:
     updated_record_writer = None
     updated_online_writer = None
 
-
     def update_fields_using_oclc(self,
                                  file,
                                  plugin,
@@ -324,6 +323,7 @@ class RecordUpdater:
                                                          title_log_writer)
                                     self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                    fuzzy_match_label, 'updated_with_fuzzy_match')
+                                    self.__write_fuzzy_record(record)
                                     fuzzy_record_count += 1
                                     modified_count += 1
 
@@ -351,7 +351,7 @@ class RecordUpdater:
                             # records.
                             if match_ratio >= fuzzy_match_ratio:
                                 fuzz.log_fuzzy_match(title, title_for_comparison[0], match_ratio, fuzzy_match_ratio,
-                                                    oclc_001_value, title_log_writer)
+                                                     oclc_001_value, title_log_writer)
                                 self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                fuzzy_match_label, 'updated_with_fuzzy_match')
                                 self.__write_fuzzy_record(record)
@@ -460,9 +460,9 @@ class RecordUpdater:
         :return:
         """
         if self.is_online:
-            self.updated_record_writer.write(record)
-        else:
             self.updated_online_writer.write(record)
+        else:
+            self.updated_record_writer.write(record)
 
     def __get_oclc_response(self, oclc_number, cursor, database_insert):
         """
