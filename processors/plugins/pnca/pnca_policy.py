@@ -282,6 +282,10 @@ class UpdatePolicy:
         :param oclc_number:
         :return:
         """
+        # No location mapping for online records
+        if self.is_online(record):
+            return
+
         location_mapper = LocationMapper()
         # This is a hack for locations that can't be determined by
         # using the PNCA call number.
