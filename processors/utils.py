@@ -21,8 +21,8 @@ def get_original_title(record):
     return title
 
 
-def remove_control_chars(field):
-    # Odd thing that is in at least one record. This obviously should never happen.
+def remove_control_field_extra_chars(field):
+    # Odd thing found in one record. This obviously should never happen.
     control_character_replacement = re.compile('\W+\d+$')
     field = re.sub(control_character_replacement, '', field)
     return field
@@ -61,7 +61,7 @@ def get_oclc_001_value(field_001, field_003):
     if final_value_001 is not None:
         # verify that we have a valid oclc number format.
         if valid_format_regex.match(final_value_001):
-            final_value_001 = remove_control_chars(final_value_001)
+            final_value_001 = remove_control_field_extra_chars(final_value_001)
             return final_value_001
 
     return None
@@ -104,7 +104,7 @@ def __get_oclc_035_value(field_035):
                 oclc_number = field_035.replace('(OCoLC)', '')
                 match = valid_format_regex.match(oclc_number)
                 if match:
-                    oclc_number = remove_control_chars(oclc_number)
+                    oclc_number = remove_control_field_extra_chars(oclc_number)
                     return oclc_number
             except Exception as err:
                 print(err)
@@ -153,20 +153,25 @@ def __normalize_title(title):
     Remove punctuation and unnecessary spaces. This
     retains single spaces between words since they
     have no effect on levenshtein distance but might
-    be useful for other metrics.
+    be useful for other metrics, like jaccard similarity.
     :param title: the title string
     :return: modified title
     """
     # remove non-characters
-    non_char_substitution = re.compile('[.,\/#!$%\^&\*;:{}=\-_`~()]')
+    non_char_substitution = re.compile('[.,\/#!$%\^&\*;:{}\[\]=\-_`~()]')
     # remove double spaces that might be created by non-char substitution
     double_space_substitution = re.compile('\s{2,}')
     # get rid of initial space
     initial_space_substitution = re.compile('^\s+')
-    title = re.sub(non_char_substitution, '', title)
+    title = re.sub(non_char_substitution, ' ', title)
     title = re.sub(double_space_substitution, ' ', title)
     title = re.sub(initial_space_substitution, '', title)
     return title
+
+
+def __remove_stop_words(title):
+    stop_words = re.compile('\s[the|of|a|an|of|p|n]\s')
+    return re.sub(stop_words, ' ', title)
 
 
 def verify_oclc_response(oclc_response, title, title_check, require_perfect_match, ratio=50):
@@ -232,7 +237,27 @@ def get_match_ratio(value1, value2):
     return fuzz.get_ratio(norm1, norm2)
 
 
+def jaccard(list1, list2):
+    """
+    Computes and returns jaccard similarity for two titles
+    represented as sets of words.
+    :param list1: list containing first title words
+    :param list2: list containing second title words
+    :return: jaccard similarity measure
+    """
+    intersection = len(list(set(list1).intersection(list2)))
+    union = (len(list1) + len(list2)) - intersection
+    return float(intersection) / union
+
+
 def log_035_details(fields, title, writer):
+    """
+    Logs information about 035 fields
+    :param fields: 035 pymarc fields
+    :param title: item title
+    :param writer: file handle for log file
+    :return:
+    """
     for field_element in fields:
         for field in field_element.get_subfields('z'):
             z_value = __get_oclc_035_value(field)
@@ -269,18 +294,24 @@ def get_subfields_arr(field):
     return subs
 
 
-def log_fuzzy_match(original_title, oclc_title, match_result, required_ratio,
+def log_fuzzy_match(original_title, oclc_title, oclc_comparison, match_result, required_ratio,
                     current_oclc_number, title_log_writer):
     if title_log_writer is not None:
-        __log_fuzzy_matches(original_title, oclc_title, match_result, required_ratio,
-                                 current_oclc_number, title_log_writer)
+        norm1 = __normalize_title(original_title)
+        norm2 = __normalize_title(oclc_comparison)
+        norm1 = __remove_stop_words(norm1)
+        norm2 = __remove_stop_words(norm2)
+        list1 = norm1.lower().split()
+        list2 = norm2.lower().split()
+        jaccard_similarity = jaccard(list1, list2)
+        __log_fuzzy_matches(original_title, oclc_comparison, match_result, required_ratio,
+                            jaccard_similarity, current_oclc_number, title_log_writer)
 
 
 def __log_fuzzy_matches(value1, value2, match_result,
-                        required_ratio, current_oclc_number, title_log_writer):
+                        required_ratio, jaccard_similarity, current_oclc_number, title_log_writer):
     """
     Logs matches and match ratios for later review.
-
     :param value1: oclc title without normalization
     :param value2: oclc title without normalization
     :param match_result: the fuzzy match ratio
@@ -296,9 +327,10 @@ def __log_fuzzy_matches(value1, value2, match_result,
             message = 'failed'
 
         try:
-            log_message = value1 + '\t' \
+            log_message = str(match_result) + '\t' \
+                          + "{:.4f}".format(jaccard_similarity) + '\t' \
+                          + value1 + '\t' \
                           + value2 + '\t' \
-                          + str(match_result) + '\t' \
                           + message + '\t' \
                           + current_oclc_number + '\t\n'
 
