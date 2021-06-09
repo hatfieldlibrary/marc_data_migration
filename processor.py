@@ -34,7 +34,7 @@ parser.add_argument('-nt', '--no-title-check', action='store_false',
                          'to do this.')
 parser.add_argument('-dft', '--do-fuzzy-test', action='store_true',
                     help='This option adds an additional test of fuzzy match records when the OCLC number was '
-                         'found based only on the 003 label. This can be error prone.')
+                         'found based only on the 003 label.')
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modified fields.")
 parser.add_argument("-tm", "--track-title-matches", action="store_true",

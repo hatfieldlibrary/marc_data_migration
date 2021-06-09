@@ -13,7 +13,6 @@ from processors.db_connector import DatabaseConnector
 from processors.oclc_update.replace_configuration import substitution_array
 from processors.read_marc import MarcReader
 import processors.oclc_update.field_replacement_count as field_count
-from processors.oclc_update.fuzzy_match import FuzzyMatcher
 import processors.utils as utils
 
 
@@ -29,6 +28,7 @@ class RecordUpdater:
     updated_001_count = 0
     updated_003_count = 0
     updated_leader_count = 0
+    processed_records_count = 0
 
     replacement_strategy = None
     update_policy = None
@@ -105,8 +105,6 @@ class RecordUpdater:
         self.updated_record_writer = writer
         self.updated_online_writer = updated_online_writer
 
-        fuzz = FuzzyMatcher()
-
         modified_count = 0
         unmodified_count = 0
         bad_record_count = 0
@@ -168,6 +166,8 @@ class RecordUpdater:
                 self.is_online = None
                 test_001 = False
                 title = ''
+
+                self.processed_records_count += 1
 
                 try:
                     if not record.title():
@@ -318,9 +318,8 @@ class RecordUpdater:
                                     self.__write_unmodifed_record(record, oclc_001_value)
                                     unmodified_count += 1
                                 else:
-                                    fuzz.log_fuzzy_match(title, title_for_comparison[0], match_ratio,
-                                                         fuzzy_match_ratio, oclc_001_value,
-                                                         title_log_writer)
+                                    utils.log_fuzzy_match(title, title_for_comparison[0], match_ratio,
+                                                          fuzzy_match_ratio, oclc_001_value, title_log_writer)
                                     self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                    fuzzy_match_label, 'updated_with_fuzzy_match')
                                     self.__write_fuzzy_record(record)
@@ -330,9 +329,8 @@ class RecordUpdater:
                             # If not analyzing 001/003 combinations, process fuzzy matches normally and write
                             # to the separate fuzzy output file.
                             else:
-                                fuzz.log_fuzzy_match(title, title_for_comparison[0], match_ratio,
-                                                     fuzzy_match_ratio, oclc_001_value,
-                                                     title_log_writer)
+                                utils.log_fuzzy_match(title, title_for_comparison[0], match_ratio, fuzzy_match_ratio,
+                                                      oclc_001_value, title_log_writer)
                                 self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                fuzzy_match_label, 'updated_with_fuzzy_match')
                                 self.__write_fuzzy_record(record)
@@ -350,8 +348,8 @@ class RecordUpdater:
                             # titles that do not match perfectly. Doing this may result in more unmodified
                             # records.
                             if match_ratio >= fuzzy_match_ratio:
-                                fuzz.log_fuzzy_match(title, title_for_comparison[0], match_ratio, fuzzy_match_ratio,
-                                                     oclc_001_value, title_log_writer)
+                                utils.log_fuzzy_match(title, title_for_comparison[0], match_ratio, fuzzy_match_ratio,
+                                                      oclc_001_value, title_log_writer)
                                 self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                fuzzy_match_label, 'updated_with_fuzzy_match')
                                 self.__write_fuzzy_record(record)
@@ -386,9 +384,12 @@ class RecordUpdater:
         if conn is not None:
             conn.close()
 
+        print('Total processed records count: ' + str(self.processed_records_count))
+        print('Total records should equal the modified count plus the unmodified count.')
+        print()
         print('Total modified records count: ' + str(modified_count))
         print('Unmodified records count: ' + str(unmodified_count))
-        print('Records modified using fuzzy match: ' + str(fuzzy_record_count))
+        print('Records modified using an imperfect fuzzy match: ' + str(fuzzy_record_count))
         print('Bad record count: ' + str(bad_record_count))
         print()
 
@@ -596,7 +597,7 @@ class RecordUpdater:
         """
         Moves field to a new field in the record. Used
         to preserve local fields during ingest.
-        :param record: pymar record
+        :param record: pymarc record
         :param current_field_tag: tag of the current field
         :param new_field_tag: tag of the target field
         :return:
@@ -614,8 +615,8 @@ class RecordUpdater:
         :param oclc_response: the OCLC marcxml response
         :return:
         """
-        # Test to see if replacement data was provided in the OCLC record.
-        # If not, move the field in the current record to preserve in information
+        # Test to see if replacement was provided in the OCLC response.
+        # If not, move the field in the current record to preserve information
         # in a local field.
         oclc_field = oclc_response.find('./*[@tag="' + replacement_field_tag + '"]')
         if oclc_field is None:
@@ -794,11 +795,11 @@ class RecordUpdater:
             print('WARNING: You have not defined a replacement strategy.')
             print('Using default strategy.')
 
-        # Assure OCLC values are in 001 and 003. Alma load will generate 035.
+        # Assure OCLC values are in 001 and 003. Alma will generate 035.
         # Do this after title validation.
         if oclc_001_value:
             # Update 001 with the value returned in the OCLC API response. This
-            # can vary from the original value in the input records.
+            # can differ from the original value in the input records.
             self.__replace_oclc_001_003(record, oclc_001_value)
             self.updated_001_count += 1
             self.updated_003_count += 1

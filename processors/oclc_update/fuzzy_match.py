@@ -9,37 +9,6 @@ class FuzzyMatcher:
     # require review.
     default_ratio = 50
 
-    @staticmethod
-    def __log_fuzzy_matches(value1, value2, match_result,
-                            required_ratio, current_oclc_number, title_log_writer):
-        """
-        Logs matches and match ratios for later review.
-
-        :param value1: oclc title without normalization
-        :param value2: oclc title without normalization
-        :param match_ratio: the fuzzy match ratio
-        :param current_oclc_number: the oclc number used
-        :param title_log_writer: fuzzy log file handle
-        :return:
-        """
-        if title_log_writer is not None:
-            if match_result >= required_ratio:
-                message = 'passed'
-            else:
-                message = 'failed'
-
-            try:
-                log_message = value1 + '\t' \
-                          + value2 + '\t' \
-                          + str(match_result) + '\t' \
-                          + message + '\t' \
-                          + current_oclc_number + '\t\n'
-
-            except TypeError as err:
-                print('Error creating title match log entry: ' + err)
-
-            title_log_writer.write(log_message)
-
     def find_match(self, value1, value2):
         """
         Checks for matching titles using default fuzzy match ratio.
@@ -56,7 +25,8 @@ class FuzzyMatcher:
 
         return False
 
-    def find_match_with_ratio(self, value1, value2, ratio):
+    @staticmethod
+    def find_match_with_ratio(value1, value2, ratio):
         """
         Checks for matching titles using provided fuzzy match ratio.
 
@@ -81,7 +51,3 @@ class FuzzyMatcher:
     def get_ratio(value1, value2):
         return fuzz.token_sort_ratio(value1, value2)
 
-    def log_fuzzy_match(self, original_title, oclc_title, match_result, required_ratio, current_oclc_number, title_log_writer):
-        if title_log_writer is not None:
-            self.__log_fuzzy_matches(original_title, oclc_title, match_result, required_ratio,
-                                     current_oclc_number, title_log_writer)

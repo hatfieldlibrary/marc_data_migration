@@ -23,8 +23,8 @@ def get_original_title(record):
 
 def remove_control_chars(field):
     # Odd thing that is in at least one record. This obviously should never happen.
-    # control_character_replacement = re.compile('\s+\d+$')
-    # field = re.sub(control_character_replacement, '', field)
+    control_character_replacement = re.compile('\W+\d+$')
+    field = re.sub(control_character_replacement, '', field)
     return field
 
 
@@ -33,9 +33,9 @@ def get_oclc_001_value(field_001, field_003):
     Returns value from the 001 field if it's an OCLC number.
     The criteria for determining OCLC identifiers are:
 
-        The 001 value begins with 'ocn', 'ocm', or 'on'
-        OR the 003 field contains the OCoLC group identifier
-        AND the value is a valid OCLC number format.
+        - The 001 value begins with 'ocn', 'ocm', or 'on'
+        - OR the 003 field contains the OCoLC group identifier
+        - AND the value is a valid OCLC number format.
 
     :param: field_001 The 001 pymarc Field
     :param: field_003 The 003 pymarc Field
@@ -148,13 +148,24 @@ def get_oclc_title(oclc_response):
     return None
 
 
-def normalize_title(title):
+def __normalize_title(title):
+    """
+    Remove punctuation and unnecessary spaces. This
+    retains single spaces between words since they
+    have no effect on levenshtein distance but might
+    be useful for other metrics.
+    :param title: the title string
+    :return: modified title
+    """
     # remove non-characters
-    end_of_line_substitution = re.compile('[\W|\\t]+')
-    # remove spaces
-    start_of_line_substitution = re.compile('\s+')
-    title = re.sub(end_of_line_substitution, '', title)
-    title = re.sub(start_of_line_substitution, '', title)
+    non_char_substitution = re.compile('[.,\/#!$%\^&\*;:{}=\-_`~()]')
+    # remove double spaces that might be created by non-char substitution
+    double_space_substitution = re.compile('\s{2,}')
+    # get rid of initial space
+    initial_space_substitution = re.compile('^\s+')
+    title = re.sub(non_char_substitution, '', title)
+    title = re.sub(double_space_substitution, ' ', title)
+    title = re.sub(initial_space_substitution, '', title)
     return title
 
 
@@ -165,12 +176,10 @@ def verify_oclc_response(oclc_response, title, title_check, require_perfect_matc
     match based on Levenshtein distance, originally to
     account for diacritics issues. If you need an
     exact match, adjust the matching threshold to be 100.
+    This method is currently not used.
 
     :param oclc_response: The XML root Element
     :param title: The record title 245(a),(b)
-    :param title_log_writer: fuzzy match audit file
-    :param input_title: The input file title 245(a),(b)
-    :param current_oclc_number: the number used in the current OCLC lookup
     :param title_check: if True do comparison
     :param require_perfect_match: if True require a perfect title match
     :return boolean true if record is verified or does not require verification
@@ -188,8 +197,8 @@ def verify_oclc_response(oclc_response, title, title_check, require_perfect_matc
             title_arr = get_oclc_title(oclc_response)
             if title_arr is not None:
                 if len(title_arr) == 2:
-                    node_text = normalize_title(title_arr[1])
-                    pnca_title = normalize_title(title)
+                    node_text = __normalize_title(title_arr[1])
+                    pnca_title = __normalize_title(title)
                     if require_perfect_match:
                         # This is using ratio 100 so a perfect match is required.
                         return fuzz.find_match_with_ratio(pnca_title.lower(), node_text.lower(), 100)
@@ -209,8 +218,8 @@ def get_fuzzy_match_ratio(oclc_response, title):
             title_arr = get_oclc_title(oclc_response)
             if title_arr is not None:
                 if len(title_arr) == 2:
-                    node_text = normalize_title(title_arr[1])
-                    pnca_title = normalize_title(title)
+                    node_text = __normalize_title(title_arr[1])
+                    pnca_title = __normalize_title(title)
                     return fuzz.get_ratio(pnca_title.lower(), node_text.lower())
         except Exception as e:
             print(e)
@@ -218,8 +227,8 @@ def get_fuzzy_match_ratio(oclc_response, title):
 
 
 def get_match_ratio(value1, value2):
-    norm1 = normalize_title(value1)
-    norm2 = normalize_title(value2)
+    norm1 = __normalize_title(value1)
+    norm2 = __normalize_title(value2)
     return fuzz.get_ratio(norm1, norm2)
 
 
@@ -258,3 +267,42 @@ def get_subfields_arr(field):
             subs.append(key)
             subs.append(val)
     return subs
+
+
+def log_fuzzy_match(original_title, oclc_title, match_result, required_ratio,
+                    current_oclc_number, title_log_writer):
+    if title_log_writer is not None:
+        __log_fuzzy_matches(original_title, oclc_title, match_result, required_ratio,
+                                 current_oclc_number, title_log_writer)
+
+
+def __log_fuzzy_matches(value1, value2, match_result,
+                        required_ratio, current_oclc_number, title_log_writer):
+    """
+    Logs matches and match ratios for later review.
+
+    :param value1: oclc title without normalization
+    :param value2: oclc title without normalization
+    :param match_result: the fuzzy match ratio
+    :param required_ratio: the ratio required to "pass"
+    :param current_oclc_number: the oclc number used
+    :param title_log_writer: fuzzy log file handle
+    :return:
+    """
+    if title_log_writer is not None:
+        if match_result >= required_ratio:
+            message = 'passed'
+        else:
+            message = 'failed'
+
+        try:
+            log_message = value1 + '\t' \
+                          + value2 + '\t' \
+                          + str(match_result) + '\t' \
+                          + message + '\t' \
+                          + current_oclc_number + '\t\n'
+
+        except TypeError as err:
+            print('Error creating title match log entry: ' + err)
+
+        title_log_writer.write(log_message)
