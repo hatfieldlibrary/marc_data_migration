@@ -17,12 +17,11 @@ import processors.utils as utils
 
 
 class RecordUpdater:
-    connector = OclcConnector()
-    database_update = DatabaseUpdate()
 
     ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
-    oclc_developer_key = ''
+    connector = OclcConnector()
+    database_update = DatabaseUpdate()
 
     failed_oclc_lookup_count = 0
     updated_001_count = 0
@@ -30,55 +29,29 @@ class RecordUpdater:
     updated_leader_count = 0
     processed_records_count = 0
 
-    replacement_strategy = None
-    update_policy = None
-
-    field_audit_writer = None
-
     is_online = False
-    unmodified_writer = None
-    unmodified_online_writer = None
-    fuzzy_record_writer = None
-    fuzzy_online_writer = None
-    updated_record_writer = None
-    updated_online_writer = None
+    replacement_strategy = None
 
-    def update_fields_using_oclc(self,
-                                 file,
-                                 plugin,
-                                 database_name,
-                                 password,
-                                 require_perfect_match,
-                                 title_check,
-                                 database_insert,
-                                 writer,
-                                 unmodified_writer,
-                                 bad_writer,
-                                 title_log_writer,
-                                 oclc_xml_writer,
-                                 field_audit_writer,
-                                 fuzzy_record_writer,
-                                 updated_online_writer,
-                                 unmodified_online_writer,
-                                 fuzzy_online_writer,
-                                 field_035_details_writer,
-                                 oclc_developer_key,
-                                 do_fuzzy_001_test=False,
-                                 fuzzy_match_ratio=50,
-                                 replacement_strategy='replace_and_add') -> None:
+    def __init__(self,
+                 database_name=None,
+                 password=None,
+                 oclc_developer_key = None,
+                 modified_writer=None,
+                 unmodified_writer=None,
+                 bad_writer=None,
+                 title_log_writer=None,
+                 oclc_xml_writer=None,
+                 field_audit_writer=None,
+                 fuzzy_record_writer=None,
+                 fuzzy_online_writer=None,
+                 updated_online_writer=None,
+                 unmodified_online_writer=None,
+                 field_035_details_writer=None):
         """
-        Updates the input marc file records with data retrieved
-        from OCLC worldcat. There are lots of parameter here. Admittedly confusing,
-        but parameterization allows you to run various pre-configured tasks so the
-        benefit seems to outweigh the startup cost.
-        :param file The marc file (binary)
-        :param plugin The module to use when modifying records
+        Constructor.
         :param database_name Optional database name
         :param password Optional database password
-        :param require_perfect_match If True a perfect title match with OCLC is required
-        :param title_check If true will do 245ab title match
-        :param database_insert If true insert API repsonse into database
-        :param writer The output file writer
+        :param modified_writer The output file writer
         :param unmodified_writer The output file writer for unmodifed records
         :param bad_writer The output file records that cannot be processed
         :param title_log_writer The output title for fuzzy matched titles
@@ -90,6 +63,40 @@ class RecordUpdater:
         :param fuzzy_record_writer Output pretty records with fuzzy OCLC title match
         :param field_035_details_writer Outputs 035(z) audit
         :param oclc_developer_key The developer key used to query OCLC
+        """
+
+        self.database_name = database_name
+        self.password = password
+        self.oclc_developer_key = oclc_developer_key,
+        self.modified_writer = modified_writer
+        self.unmodified_writer = unmodified_writer
+        self.bad_writer = bad_writer
+        self.title_log_writer = title_log_writer
+        self.oclc_xml_writer = oclc_xml_writer
+        self.field_audit_writer = field_audit_writer
+        self.fuzzy_record_writer = fuzzy_record_writer
+        self.fuzzy_online_writer = fuzzy_online_writer
+        self.updated_online_writer = updated_online_writer
+        self.unmodified_online_writer = unmodified_online_writer
+        self.field_035_details_writer = field_035_details_writer
+
+    def update_fields_using_oclc(self,
+                                 file,
+                                 plugin,
+                                 require_perfect_match,
+                                 title_check,
+                                 database_insert,
+                                 do_fuzzy_001_test=False,
+                                 fuzzy_match_ratio=50,
+                                 replacement_strategy='replace_and_add') -> None:
+        """
+        Updates the input marc file records with data retrieved
+        from OCLC worldcat.
+        :param file The marc file (binary)
+        :param plugin The module to use when modifying records
+        :param require_perfect_match If True a perfect title match with OCLC is required
+        :param title_check If true will do 245ab title match
+        :param database_insert If true insert API repsonse into database
         :param do_fuzzy_001_test Indicates whether a separate test is run when fuzzy matching 001/003 combinations
         Default False.
         :param fuzzy_match_ratio The value used in fuzzy match logging to determine pass/fail status. Default 50.
@@ -98,12 +105,6 @@ class RecordUpdater:
         """
 
         self.replacement_strategy = replacement_strategy
-        self.unmodified_writer = unmodified_writer
-        self.unmodified_online_writer = unmodified_online_writer
-        self.fuzzy_record_writer = fuzzy_record_writer
-        self.fuzzy_online_writer = fuzzy_online_writer
-        self.updated_record_writer = writer
-        self.updated_online_writer = updated_online_writer
 
         modified_count = 0
         unmodified_count = 0
@@ -120,7 +121,7 @@ class RecordUpdater:
 
         print('Using replacement strategy: ' + self.replacement_strategy)
 
-        self.field_audit_writer = field_audit_writer
+        self.field_audit_writer = self.field_audit_writer
 
         dt = datetime.datetime.now()
 
@@ -136,20 +137,20 @@ class RecordUpdater:
             original_fuzzy_writer = TextWriter(
                 open('output/updated-records/fuzzy-original-records-pretty-' + str(dt) + '.txt', 'w'))
 
-        self.oclc_developer_key = oclc_developer_key
+        self.oclc_developer_key = self.oclc_developer_key
 
-        if oclc_xml_writer is not None:
-            oclc_xml_writer.write('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>')
-            oclc_xml_writer.write('<collection xmlns="http://www.loc.gov/MARC21/slim" '
+        if self.oclc_xml_writer is not None:
+            self.oclc_xml_writer.write('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>')
+            self.oclc_xml_writer.write('<collection xmlns="http://www.loc.gov/MARC21/slim" '
                                   'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                                   'xsi:schemaLocation="http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">')
 
         conn = None
         cursor = None
-        if database_name:
+        if self.database_name:
             # If database provided, initialize the connection and set cursor.
             db_connect = DatabaseConnector()
-            conn = db_connect.get_connection(database_name, password)
+            conn = db_connect.get_connection(self.database_name, self.password)
             print("Database opened successfully.")
             cursor = conn.cursor()
 
@@ -163,7 +164,7 @@ class RecordUpdater:
                 input_oclc_number = None
                 oclc_001_value = None
                 oclc_response = None
-                self.is_online = None
+                self.is_online = False
                 test_001 = False
                 title = ''
 
@@ -179,7 +180,7 @@ class RecordUpdater:
                         field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                     if len(record.get_fields('035')) > 0:
                         field_035 = utils.get_035(record)
-                        utils.log_035_details(record.get_fields('035'), record.title(), field_035_details_writer)
+                        utils.log_035_details(record.get_fields('035'), record.title(), self.field_035_details_writer)
 
                 except Exception as err:
                     print('error reading fields from input record.')
@@ -233,8 +234,8 @@ class RecordUpdater:
                                                    oclc_response, title)
 
                         # Write to the OCLC record to file if file handle was provided.
-                        if oclc_xml_writer is not None:
-                            oclc_xml_writer.write(str(ET.tostring(oclc_response,
+                        if self.oclc_xml_writer is not None:
+                            self.oclc_xml_writer.write(str(ET.tostring(oclc_response,
                                                                   encoding='utf8',
                                                                   method='xml')))
 
@@ -318,8 +319,9 @@ class RecordUpdater:
                                     self.__write_unmodifed_record(record, oclc_001_value)
                                     unmodified_count += 1
                                 else:
-                                    utils.log_fuzzy_match(title, title_for_comparison[0], match_ratio,
-                                                          fuzzy_match_ratio, oclc_001_value, title_log_writer)
+                                    utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
+                                                          match_ratio, fuzzy_match_ratio, oclc_001_value,
+                                                          self.title_log_writer)
                                     self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                    fuzzy_match_label, 'updated_with_fuzzy_match')
                                     self.__write_fuzzy_record(record)
@@ -329,8 +331,9 @@ class RecordUpdater:
                             # If not analyzing 001/003 combinations, process fuzzy matches normally and write
                             # to the separate fuzzy output file.
                             else:
-                                utils.log_fuzzy_match(title, title_for_comparison[0], match_ratio, fuzzy_match_ratio,
-                                                      oclc_001_value, title_log_writer)
+                                utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
+                                                      match_ratio, fuzzy_match_ratio,
+                                                      oclc_001_value, self.title_log_writer)
                                 self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                fuzzy_match_label, 'updated_with_fuzzy_match')
                                 self.__write_fuzzy_record(record)
@@ -348,8 +351,9 @@ class RecordUpdater:
                             # titles that do not match perfectly. Doing this may result in more unmodified
                             # records.
                             if match_ratio >= fuzzy_match_ratio:
-                                utils.log_fuzzy_match(title, title_for_comparison[0], match_ratio, fuzzy_match_ratio,
-                                                      oclc_001_value, title_log_writer)
+                                utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
+                                                      match_ratio, fuzzy_match_ratio,
+                                                      oclc_001_value, self.title_log_writer)
                                 self.__process_modified_record(record, oclc_response, oclc_001_value,
                                                                fuzzy_match_label, 'updated_with_fuzzy_match')
                                 self.__write_fuzzy_record(record)
@@ -374,12 +378,12 @@ class RecordUpdater:
                 bad_record_count += 1
                 print(reader.current_exception)
                 print(reader.current_chunk)
-                bad_writer.write(reader.current_chunk)
+                self.bad_writer.write(reader.current_chunk)
 
         reader.close()
 
-        if oclc_xml_writer is not None:
-            oclc_xml_writer.write('</collection>')
+        if self.oclc_xml_writer is not None:
+            self.oclc_xml_writer.write('</collection>')
 
         if conn is not None:
             conn.close()
@@ -463,7 +467,7 @@ class RecordUpdater:
         if self.is_online:
             self.updated_online_writer.write(record)
         else:
-            self.updated_record_writer.write(record)
+            self.modified_writer.write(record)
 
     def __get_oclc_response(self, oclc_number, cursor, database_insert):
         """
@@ -574,7 +578,7 @@ class RecordUpdater:
             values.append(original.value())
         return values
 
-    def __write_to_audit_log(self, replacement_field, original_fields, field, control_field, writer):
+    def __write_to_audit_log(self, replacement_field, original_fields, field, control_field):
         """
         Writes field replacements to audit log.
         :param replacement_field: replacement field tag
@@ -586,7 +590,7 @@ class RecordUpdater:
         """
         for single_field in self.__get_original_values(original_fields):
             # Output order: oclc #, tag, new field value, original field value.
-            writer.write(control_field + '\t'
+            self.field_audit_writer.write(control_field + '\t'
                          + replacement_field + '\t'
                          + field.value() + '\t'
                          + single_field + '\n')
@@ -658,7 +662,7 @@ class RecordUpdater:
                 if field:
                     if self.field_audit_writer:
                         self.__write_to_audit_log(replacement_field_tag, original_fields, field,
-                                                  field_001, self.field_audit_writer)
+                                                  field_001)
                     # add new field with OCLC data to record
                     record.add_ordered_field(field)
         else:
@@ -685,8 +689,7 @@ class RecordUpdater:
             original_fields = record.get_fields(replacement_field)
             field_001 = record['001'].value()
             if self.field_audit_writer:
-                self.__write_to_audit_log(replacement_field, original_fields, field,
-                                          field_001, self.field_audit_writer)
+                self.__write_to_audit_log(replacement_field, original_fields, field, field_001)
 
             record.remove_fields(replacement_field)
             record.add_ordered_field(field)

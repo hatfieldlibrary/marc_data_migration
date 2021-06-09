@@ -47,7 +47,7 @@ parser.add_argument('-oc', '--oclc-records', action='store_true',
 parser.add_argument("-ccf", "--check-control-field-db", action="store_true",
                     help="Reports duplicate 001/003 combinations.")
 parser.add_argument('-d', '--duplicates', action='store_true',
-                     help='Checks for duplicate OCLC numbers in the database.')
+                    help='Checks for duplicate OCLC numbers in the database.')
 parser.add_argument("-dupt", "--check-duplicate-title", action="store_true",
                     help="Check for duplicate 245 fields.")
 parser.add_argument("-dupm", "--check-duplicate-main", action="store_true",
@@ -93,7 +93,6 @@ if args.duplicates:
     find_dups.check_duplicates(source, database_name, password, writer)
 
 if args.oclc_records:
-
     # Get developer key. Change path as needed!
     with open('/Users/mspalti/oclc_worldcat_my_key.txt', 'r') as fh:
         oclc_developer_key = fh.readline().strip()
@@ -104,12 +103,12 @@ if args.oclc_records:
     fetch_recs.fetch_marcxml(source, oclc_xml_writer, oclc_developer_key)
 
 if args.modify_recs:
-
     # The policy plugin module to use for record modifications.
     # plugin = 'processors.plugins.pnca.pnca_policy'
 
     # modified records
-    modified_records_writer = TextWriter(open('output/modified-records/modified-records-pretty-' + str(dt) + '.txt', 'w'))
+    modified_records_writer = TextWriter(
+        open('output/modified-records/modified-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # online item records
     modified_online_writer = TextWriter(open('output/modified-records/modified-online-pretty-' + str(dt) + '.txt', 'w'))
@@ -133,25 +132,29 @@ if args.replace_fields:
     updated_online_writer = TextWriter(open('output/updated-records/updated-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # unmodified records
-    unmodified_records_writer = TextWriter(open('output/updated-records/non-updated-records-pretty-' + str(dt) + '.txt', 'w'))
+    unmodified_records_writer = TextWriter(
+        open('output/updated-records/non-updated-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # unmodified online item records
-    unmodified_online_writer = TextWriter(open('output/updated-records/non-updated-online-pretty-' + str(dt) + '.txt', 'w'))
+    unmodified_online_writer = TextWriter(
+        open('output/updated-records/non-updated-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # fuzzy field match records
-    fuzzy_records_writer = TextWriter(open('output/updated-records/fuzzy-updated-records-pretty-' + str(dt) + '.txt', 'w'))
+    fuzzy_records_writer = TextWriter(
+        open('output/updated-records/fuzzy-updated-records-pretty-' + str(dt) + '.txt', 'w'))
 
     # fuzzy online item records
-    fuzzy_online_writer = TextWriter(open('output/updated-records/fuzzy-updated-online-pretty-' + str(dt) + '.txt', 'w'))
+    fuzzy_online_writer = TextWriter(
+        open('output/updated-records/fuzzy-updated-online-pretty-' + str(dt) + '.txt', 'w'))
 
     # Write unreadable records to binary file.
     bad_records_writer = open('output/updated-records/bad-records-pretty-' + str(dt) + '.txt', 'wb')
 
+    field_035_details_writer = open('output/audit/field-035-details-' + str(dt) + '.txt', 'w')
+
     title_log_writer = None
     oclc_xml_writer = None
     field_substitution_audit_writer = None
-
-    field_035_details_writer = open('output/audit/field-035-details-' + str(dt) + '.txt', 'w')
 
     # optional report on fuzzy title matching for most current OCLC harvest
     if args.track_title_matches:
@@ -165,35 +168,39 @@ if args.replace_fields:
     if args.track_fields:
         field_substitution_audit_writer = open('output/audit/fields-audit-' + str(dt) + '.txt', 'w')
 
-    updater = RecordUpdater()
+    updater = RecordUpdater(database_name=database_name,
+                            password=password,
+                            modified_writer=updated_records_writer,
+                            updated_online_writer=updated_online_writer,
+                            unmodified_writer=unmodified_records_writer,
+                            unmodified_online_writer=unmodified_online_writer,
+                            bad_writer=bad_records_writer,
+                            title_log_writer=title_log_writer,
+                            oclc_xml_writer=oclc_xml_writer,
+                            field_audit_writer=field_substitution_audit_writer,
+                            fuzzy_record_writer=fuzzy_records_writer,
+                            fuzzy_online_writer=fuzzy_online_writer,
+                            field_035_details_writer=field_035_details_writer,
+                            oclc_developer_key=oclc_developer_key
+                            )
 
     # NOTE the alternative replacement strategy is "replace_only" which
     # simply replaces existing fields with OCLC values and does not
     # add any new tags to the record.
     updater.update_fields_using_oclc(args.source,
                                      args.plugin,
-                                     database_name,
-                                     password,
                                      args.perfect_match,
                                      args.no_title_check,
                                      args.database_insert,
-                                     updated_records_writer,
-                                     unmodified_records_writer,
-                                     bad_records_writer,
-                                     title_log_writer,
-                                     oclc_xml_writer,
-                                     field_substitution_audit_writer,
-                                     fuzzy_records_writer,
-                                     updated_online_writer,
-                                     unmodified_online_writer,
-                                     fuzzy_online_writer,
-                                     field_035_details_writer,
-                                     oclc_developer_key,
                                      args.do_fuzzy_test,
+                                     fuzzy_match_ratio=50,
                                      replacement_strategy='replace_and_add')
 
     bad_records_writer.close()
+    field_035_details_writer.close()
     if title_log_writer is not None:
         title_log_writer.close()
     if field_substitution_audit_writer is not None:
         field_substitution_audit_writer.close()
+    if oclc_xml_writer:
+        oclc_xml_writer.close()
