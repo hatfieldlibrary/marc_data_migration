@@ -3,19 +3,16 @@
 Python modules created for migration of Pacific Northwest College of Art (PNCA) records to 
 Alma (Orbis-Cascade Alliance SLIS). Uses [pymarc](https://gitlab.com/pymarc/pymarc).
 
-The main features are:
+The features are:
 
-* Replacing fields with OCLC data based on OCLC number lookup and exact or fuzzy
-matching on the item title.
-* Modifying existing records with specific transformation rules.
-* Creating plugins that define the rules for transformations.
-
-I created a plugin module for our PNCA data and a sample starter plugin for adding a new record update policy.
+* Plugins that define rules for record transformations.
+* A module for updating records with data from the OCLC Worldcat API.
+* Functions for generating reports.
 
 ```
 usage: processor.py [-h] [-p module name] [-m] [-r] [-pm] [-db database name]
-                    [-di] [-nt] [-t] [-tm] [-so] [-oc] [-ccf] [-d] [-dupt]
-                    [-dupm] [-comp]
+                    [-di] [-nt] [-dft] [-t] [-tm] [-so] [-oc] [-ccf] [-d]
+                    [-dupt] [-dupm] [-comp]
                     source
 
 Process marc records.
@@ -44,6 +41,10 @@ optional arguments:
   -nt, --no-title-check
                         Skip the fuzzy title match on 245 fields before
                         updating records. You probably do not want to do this.
+  -dft, --do-fuzzy-test
+                        This option adds an additional test of fuzzy match
+                        records when the OCLC number was found based only on
+                        the 003 label.
   -t, --track-fields    Create an audit log of modified fields.
   -tm, --track-title-matches
                         Create audit log of fuzzy title matches.
