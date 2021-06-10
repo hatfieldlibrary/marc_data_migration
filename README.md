@@ -66,62 +66,119 @@ optional arguments:
                         
 Example:
 
-process.py --replace-fields --plug-in processors.plugins.lib.lib_policy --track-fields 
---track-title-matches /home/user/marcfile 
+process.py --replace-fields --perfect-match --plug-in processors.plugins.lib.lib_policy --track-fields 
+--track-title-matches --do-fuzzy-test --db database_name /home/user/marcfile 
 ```
 
-We are using this utility to correct problems in records that were exported from the Alexandria ILS.
-The problems included bad character encoding and invalid control fields.
+##Plugins
 
-When you provide the `--replace-fields` argument, the OCLC API is queried (an OCLC developer key is required). 
-The utility will update any field in the `substitutions` list with corresponding data from the OCLC record.
+You can define rules for modifying records using an `UpdatePolicy` plugin and providing it at runtime using
+the `--plug-in` argument. This package includes the plugin we developed for our migration into Alma and a 
+sample starter plugin.
 
-Using the OCLC API is time-consuming. Running with the `--database-name` and `--database-insert` arguments will insert
-OCLC  data into a postgres database table. Subsequent executions will run against the database 
-when the `--database-name` argument is provided. Highly recommended if you need to do this more than one time!
+##Reports
+You can run a number of reports that we developed to help with analyzing errors found in records and reviewing
+the output of OCLC field substitution. The analysis of OCLC substitutions include metrics to help with
+determining the accuracy of record matches based on the OCLC number found in the input record.
 
-Updated records are output to `updated-records`.  Unmodified records are written to `unmodified-records`.
+##OCLC API Record Harvesting
+You can harvest OCLC records to speed up subsequent processing in two ways. The method used in package is adding
+records to a postgres database using the `--database-insert` option and then applying the database to subsequent 
+processing. You can use the database when processing by adding the `-db` flag, and the database name. 
 
-# Matching Records
+If you like, you can also write OCLC records to a MARCXML file.
 
-When the `--perfect-match` argument is used, only records with a perfect match on the OCLC 245(a)(b) subfields
-are written to the `updated-records` file. Otherwise, the utility uses a fuzzy match algorithm. It writes
-any record that meets the fuzzy match threshold requirement to `updated-records`.  An audit file can be used to assess the
-accuracy of fuzzy record matching.
+##Updating with OCLC Data
+If your records require this step, you can update and/or add new OCLC record fields. For large projects, this 
+will require and OCLC API developer key (path to key defined in `proccessor.py`). Use 
+the `--replace-fields` argument and additional arguments such as `--perfect-match`, `--track-title-matches`, and
+`--db`.
 
-If you use the `--perfect-match` option, updated records with **imperfect matches** on 245(a)(b) are
-written to `fuzzy-modified-records`. These records can be immediately reviewed, or loaded separately into
-the Alma _Institution Zone_ and reviewed as part of a cleanup project. A `fuzzy-match-passed` or `fuzzy-match-failed`
-label is added to the local 962 field to make that work easier. (Note that records failing the fuzzy match threshold
-are often valid matches because of variations in cataloging.)
+If you replace fields you will probably want to review and update the `substitution_array` defined in 
+`replace_configuration.py`. This list determines which fields get updated with OCLC data. There are two
+replacement strategies available: `replace_and_add` and `replace_only`.  The obvious difference is that
+`replace_and_add` (default) will add new fields to the record when provided in the OCLC response.
+
+The record locations used for the OCLC number are:
+
+* 035 with OCoLC label
+* 001 value with an OCLC prefix
+* 001/003 combination with an OCoLC label, and an 001 value that does not have an OCLC prefix
+
+When using the `--perfect-match` argument, only records with perfect matches on OCLC 245(a)(b)
+get written to the `updated-records` file. For imperfect matches, the program updates the record with OCLC
+data, but writes the output to a `fuzzy-updated-records` file for later review. A `fuzzy-match-passed` 
+or `fuzzy-match-failed` label gets added to the 962 field so these records can be found for review
+after records are loaded into the system. To assist with the later review, you can
+add the `--track-title-matches` argument.  This generates a tab-delimited audit file with accuracy metrics
+based on Levenshtein Distance and Jaccard Similarity. Sorting on these metrics can be useful.
+
+The `--do-fuzzy-test` argument is a special case that might be helpful elsewhere.  
+In our data set, OCLC numbers for 001 values without an OCLC prefix ('ocn', 'ocm', or 'on') 
+were highly inaccurate. The `--do-fuzzy-test` argument triggers a secondary evaluate that excludes 
+records that do not meet an accuracy (Levenshtein Distance) threshold. Records that do not meet the 
+threshold get written to the `non-modified` records file without an OCLC update. The program replaces 
+the OCLC 001/003 values in the record with a unique local identifier provided by the plugin `set_local_id()` 
+method. This sort of fine-tuning is obviously dependent the results you see in your own data.
+
+When you provid the `--perfect-match` argument, records with a perfect match on the OCLC 245(a)(b) subfields
+get written to the `updated-records` file. Imperfect matches get written to a `fuzzy-updated-records` file.
+
+Records that do not have an OCLC match (or are rejected by `--do-fuzzy-test` mentioned above) get written 
+to a `non-updated-records` file.
 
 # Output Files
 
 ## updated-records
 Records that are updated with OCLC data.
 
-## unmodified-records
+## updated-online
+Records for online resources that are updated with OCLC data.
+
+## non-updated-records
 Original input records that are not updated with OCLC data.
+
+## non-updated-online
+Original input records for online resources that are not updated with OCLC data.
 
 ## bad-records
 Records that could not be processed by pymarc because of errors in the original marc record.
 
-## fuzzy-modified-records
-Records that have been updated with OCLC data without an exact match on the 245 fields. See audit log.
+## fuzzy-updated-records
+Records that have been updated with OCLC data but lack an exact match on the 245 fields. 
+
+## fuzzy-online-records
+Records for electronic resources that have been updated with OCLC data but lack an exact match on the 245 fields. 
 
 ## fuzzy-original-records
-The original input records for comparison with fuzzy-modified-records.
+The original input records for comparison with fuzzy-updated-records.
 
 # Audit files
 
 ## title-fuzzy-match
-A tab-delimited text file with information on fuzzy match records: original title, oclc title, titles normalized for 
-comparison, fuzzy match ratio, pass/fail result,  oclc number. 
+A tab-delimited text file with information on fuzzy match records: Levenshtein Distance, Jaccard Similarity,
+original title, oclc title, pass/fail result, oclc number. 
 
-## fields_audit
-A tab-delimited file with all field replacements: oclc number, tag, new value, original value.
+## fields-audit
+A tab-delimited file recording all field replacements: oclc number, tag, new value, original value.
 
-# OCLC XML
+## mat-type-analysis
+Identifies conflict between call number and location (300) fields. Idiosyncratic, so uses a plugin method. 
+Tab-delimited.
+
+## field-035-details
+Captures subfield "z", duplicate or missing "a"
+
+## duplicate_title_fields
+Reports all records with multiple 245 fields
+
+## duplicate_100_fields
+Reports all records with multiple 1xx fields
+
+## missing-245a
+Records that have no 245(a) value.
+
+# Harvest
 
 ## oclc
-When the --save-oclc argument is used, marcxml written to this file.
+OCLC MARCXML written to this file when `--save-oclc` or `--oclc-records` are used.
