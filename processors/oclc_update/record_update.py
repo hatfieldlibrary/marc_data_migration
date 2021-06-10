@@ -126,7 +126,7 @@ class RecordUpdater:
         dt = datetime.datetime.now()
 
         missing_required_field_writer = TextWriter(
-            open('output/audit/records-with-missing-field-pretty-' + str(dt) + '.txt', 'w'))
+            open('output/audit/missing-245a-pretty-' + str(dt) + '.txt', 'w'))
 
         if database_insert:
             bad_oclc_reponse_writer = open('output/xml/bad-oclc-response-' + str(dt) + '.xml', 'w')
@@ -430,7 +430,7 @@ class RecordUpdater:
     def __write_unmodifed_record(self, record, value001):
         """
         Process and write unmodified record
-        :param record: pymar record
+        :param record: pymarc record
         :param value001: 001 value from record
         :return:
         """
@@ -440,6 +440,9 @@ class RecordUpdater:
                     # There was no OCLC response, so this move is not conditional.
                     self.__move_field(record, field_move[0], field_move[1])
             self.update_policy.execute(record, value001)
+            # Non-updated records should be passed to the plugin's method
+            # for updating 001/003.
+            self.update_policy.set_local_id(record)
             self.__material_type_analysis(record, 'unmodified_records')
 
         if self.is_online:

@@ -67,7 +67,6 @@ class UpdatePolicy:
         self.__add_location(record, identifier)
         self.__add_inventory(record)
         self.__add_funds(record)
-        self.__set_pnca_id(record)
         self.fix_duplicate_100_field(record)
         self.__add_local_field_note(record)
 
@@ -184,7 +183,7 @@ class UpdatePolicy:
                     self.mat_type_log_writer.write(pnca_call_number + "\t" + subfield_300a + "\t" + type +
                                                    "\t" + title + "\n")
 
-    def __set_pnca_id(self, record):
+    def set_local_id(self, record):
         """
         PNCA 001 and 003 control fields include a lot of
         duplicates. These need to be replaced to the extent possible.

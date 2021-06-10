@@ -42,4 +42,13 @@ class UpdatePolicy:
         """
         pass
 
+    def set_local_id(self, record):
+        """
+        Sets 001 and 003 fields to use a unique local identifier
+        and label.
+        :param record: pymarc record
+        :return:
+        """
+        pass
+
     # Implement private methods here.
