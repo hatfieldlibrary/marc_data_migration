@@ -100,7 +100,7 @@ replacement strategies available: `replace_and_add` and `replace_only`.  The obv
 `replace_and_add` (default) will add new fields to the record. The `replace_only` strategy simply updates 
 existing fields.
 
-The record locations used for the OCLC number are:
+The record locations used for the OCLC number in order of precedence are:
 
 * 035 with OCoLC label
 * 001 value with an OCLC prefix
