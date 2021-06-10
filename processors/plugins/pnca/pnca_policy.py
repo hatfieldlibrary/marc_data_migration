@@ -25,7 +25,7 @@ class UpdatePolicy:
     ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
     # These fields will get the $9local subfield that preserves
-    # the local field when importing to Alma.
+    # the field when importing to Alma.
     local_fields = ['590',
                     '591',
                     '592',
@@ -68,6 +68,7 @@ class UpdatePolicy:
         self.__add_inventory(record)
         self.__add_funds(record)
         self.__set_pnca_id(record)
+        self.fix_duplicate_100_field(record)
         self.__add_local_field_note(record)
 
     @staticmethod
@@ -110,6 +111,25 @@ class UpdatePolicy:
                         self.online_periodical_count += 1
                         return True
         return False
+
+    def fix_duplicate_100_field(self, record):
+        """
+        Quite a few of the exported PNCA records have
+        a 100 field and a 130 field indicating language.
+        The language needs to be added to the 100 field
+        and the 130 field removed from the record
+        :param record: pymarc record
+        :return:
+        """
+        fields100 = record.get_fields('100')
+        fields130 = record.get_fields('130')
+        if len(fields100) > 0 and len(fields130) > 0:
+            subfields = fields130[0].subfields_as_dict()
+            if 'l' in subfields.keys():
+                subfields100 = fields100[0].subfields_as_dict()
+                if 'l' not in subfields100.keys():
+                    fields100[0].add_subfield('l', subfields['l'])
+                record.remove_fields('130')
 
     def print_online_record_counts(self):
         """
