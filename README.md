@@ -89,12 +89,12 @@ and providing the database name (and optionally the password). This is recommend
 If you like, you can also write OCLC records to a MARCXML file.  
 
 ## Updating with OCLC Data
-If your records require this step, you can update and/or add new OCLC record fields. For large projects, this 
-will require and OCLC API developer key (path to key defined in `proccessor.py`). Use 
-the `--replace-fields` argument and additional arguments such as `--perfect-match`, `--track-title-matches`, and
+If your records need a serious fix, you can update fields and/or add new fields using data retrieved 
+from OCLC. For larger projects, this will require and OCLC API developer key (path to key defined in `proccessor.py`). 
+Use the `--replace-fields` argument and additional arguments such as `--perfect-match`, `--track-title-matches`, and
 `--db`.
 
-If you replace fields you will probably want to review and update the `substitution_array` defined in 
+If you replace fields you should review and possibly update the `substitution_array` defined in 
 `replace_configuration.py`. This list determines which fields get updated with OCLC data. There are two
 replacement strategies available: `replace_and_add` and `replace_only`.  The obvious difference is that
 `replace_and_add` (default) will add new fields to the record. The `replace_only` strategy simply updates 
