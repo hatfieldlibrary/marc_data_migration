@@ -42,7 +42,7 @@ parser.add_argument("-tm", "--track-title-matches", action="store_true",
 parser.add_argument("-so", "--save-oclc", action="store_true",
                     help="Save records from OCLC to local xml file during while running the replacement task.")
 parser.add_argument('-oc', '--oclc-records', action='store_true',
-                    help='Only download marcxml from OCLC number, no other '
+                    help='Only download marcxml from OCLC, no other '
                          'tasks performed.')
 parser.add_argument("-ccf", "--check-control-field-db", action="store_true",
                     help="Reports duplicate 001/003 combinations.")
