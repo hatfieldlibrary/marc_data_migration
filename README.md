@@ -82,9 +82,9 @@ the output of OCLC field substitution. The analysis of OCLC title matches includ
 determining accuracy.
 
 ## OCLC API Record Harvesting
-You can harvest OCLC records in two ways. The method used in package adds records to a postgres database using 
-the `--database-insert` option. You can use the database for subsequent processing by adding the `-db` flag and 
-providing the database name (and optionally the password). This is recommended to speed up processing.
+You can harvest OCLC records in two ways. The common and probably useful method adds records to a postgres database  
+using the `--database-insert` option. You can then use the database for subsequent processing by adding the `-db` flag  
+and providing the database name (and optionally the password). This is recommended to speed up processing.
 
 If you like, you can also write OCLC records to a MARCXML file.  
 
