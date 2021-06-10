@@ -50,7 +50,7 @@ optional arguments:
                         Create audit log of fuzzy title matches.
   -so, --save-oclc      Save records from OCLC to local xml file during while
                         running the replacement task.
-  -oc, --oclc-records   Only download marcxml from OCLC number, no other tasks
+  -oc, --oclc-records   Only download marcxml from OCLC, no other tasks
                         performed.
   -ccf, --check-control-field-db
                         Reports duplicate 001/003 combinations.
