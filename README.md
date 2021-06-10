@@ -77,7 +77,7 @@ the `--plug-in` argument. This package includes the plugin we developed for our 
 sample starter plugin.
 
 ## Reports
-You can run a number of reports that we developed to help with analyzing errors found in records and reviewing
+You can run a number of reports that we developed to help with analyzing errors in our records and reviewing
 the output of OCLC field substitution. The analysis of OCLC substitutions include metrics to help with
 determining the accuracy of record matches based on the OCLC number found in the input record.
 
