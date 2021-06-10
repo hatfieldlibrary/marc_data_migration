@@ -121,11 +121,14 @@ threshold get written to the `non-modified` records file without an OCLC update.
 the OCLC 001/003 values in the record with a unique local identifier provided by the plugin's `set_local_id()` 
 method. This sort of fine-tuning is obviously dependent the results you see in your own data.
 
-When you provid the `--perfect-match` argument, records with a perfect match on the OCLC 245(a)(b) subfields
-get written to the `updated-records` file. Imperfect matches get written to a `fuzzy-updated-records` file.
-
 Records that do not have an OCLC match (or are rejected by `--do-fuzzy-test` mentioned above) get written 
 to a `non-updated-records` file.
+
+When not using the `--perfect-match` you get quite different results.  The program does not write records to the 
+`fuzzy-updated-records` file.  Instead, records get updated and added to the `updated-records` file when they meet or
+exceed an accuracy threshold (Levenshtein Distance). All other records get written to the 
+`non-updated-records` file. This may be useful when the data is clean, and you are confident that you can set
+a threshold that excludes any misfits.
 
 # Output Files
 
