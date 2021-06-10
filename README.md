@@ -67,8 +67,8 @@ optional arguments:
                         
 Example:
 
-process.py --replace-fields --perfect-match --plug-in processors.plugins.lib.lib_policy --track-fields 
---track-title-matches --do-fuzzy-test --db database_name /home/user/marcfile 
+process.py --replace-fields --perfect-match --plug-in processors.plugins.lib.lib_policy 
+--track-fields  --track-title-matches --do-fuzzy-test --db database_name /home/user/marcfile 
 ```
 
 ## Plugins
