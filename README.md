@@ -77,16 +77,17 @@ the `--plug-in` argument. This package includes the plugin we developed for our 
 sample starter plugin.
 
 ## Reports
-You can run a number of reports that we developed to help with analyzing errors in our records and reviewing
-the output of OCLC field substitution. The analysis of OCLC substitutions include metrics to help with
-determining the accuracy of record matches based on the OCLC number found in the input record.
+You can run a number of reports that we developed to analyze errors in our records and review
+the output of OCLC field substitution. The analysis of OCLC title matches includes metrics to help with
+determining accuracy.
 
 ## OCLC API Record Harvesting
-You can harvest OCLC records to speed up subsequent processing in two ways. The method used in package is adding
-records to a postgres database using the `--database-insert` option and then applying the database to subsequent 
-processing. You can use the database when processing by adding the `-db` flag, and the database name. 
+You can harvest OCLC records in two ways. The method used in package adds records to a postgres database using 
+the `--database-insert` option and then applies the database to subsequent processing. You can use the 
+database when processing by adding the `-db` flag, and the database name. This is recommended to speed
+up processing.
 
-If you like, you can also write OCLC records to a MARCXML file.
+If you like, you can also write OCLC records to a MARCXML file. We 
 
 ## Updating with OCLC Data
 If your records require this step, you can update and/or add new OCLC record fields. For large projects, this 
