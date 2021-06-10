@@ -22,7 +22,7 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -p module name, --plugin module name
+  -p module name, --plugin plugin name
                         The plugin module used for record modifications.
                         Example: processors.plugins.pnca.pnca_policy
   -m, --modify-recs     Just modify records using the provided plugin.

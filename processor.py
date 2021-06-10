@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
                     help='Required: the path to the marc file to be processed')
-parser.add_argument('-p', '--plugin', metavar='module name', type=str,
+parser.add_argument('-p', '--plugin', metavar='plugin name', type=str,
                     help='The plugin module used for record modifications. Example: '
                          'processors.plugins.pnca.pnca_policy')
 parser.add_argument('-m', '--modify-recs', action='store_true',
