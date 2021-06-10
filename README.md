@@ -83,9 +83,8 @@ determining accuracy.
 
 ## OCLC API Record Harvesting
 You can harvest OCLC records in two ways. The method used in package adds records to a postgres database using 
-the `--database-insert` option and then applies the database to subsequent processing. You can use the 
-database when processing by adding the `-db` flag, and the database name. This is recommended to speed
-up processing.
+the `--database-insert` option. You can use the database for subsequent processing by adding the `-db` flag and 
+providing the database name (an optionally the password). This is recommended to speed up processing.
 
 If you like, you can also write OCLC records to a MARCXML file. We 
 
