@@ -86,7 +86,7 @@ You can harvest OCLC records in two ways. The method used in package adds record
 the `--database-insert` option. You can use the database for subsequent processing by adding the `-db` flag and 
 providing the database name (an optionally the password). This is recommended to speed up processing.
 
-If you like, you can also write OCLC records to a MARCXML file. We 
+If you like, you can also write OCLC records to a MARCXML file.  
 
 ## Updating with OCLC Data
 If your records require this step, you can update and/or add new OCLC record fields. For large projects, this 
