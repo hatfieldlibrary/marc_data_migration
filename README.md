@@ -10,7 +10,7 @@ The features are:
 * Functions for generating reports.
 
 ```
-usage: processor.py [-h] [-p module name] [-m] [-r] [-pm] [-db database name]
+usage: processor.py [-h] [-p plugin name] [-m] [-r] [-pm] [-db database name]
                     [-di] [-nt] [-dft] [-t] [-tm] [-so] [-oc] [-ccf] [-d]
                     [-dupt] [-dupm] [-comp]
                     source
@@ -22,7 +22,7 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -p module name, --plugin plugin name
+  -p plugin name, --plugin plugin name
                         The plugin module used for record modifications.
                         Example: processors.plugins.pnca.pnca_policy
   -m, --modify-recs     Just modify records using the provided plugin.
@@ -39,15 +39,16 @@ optional arguments:
                         with OCLC API data. Requires --use-database flag with
                         database name.
   -nt, --no-title-check
-                        Skip the fuzzy title match on 245 fields before
-                        updating records. You probably do not want to do this.
+                        Skip the title match on 245 fields before updating
+                        records. You probably do not want to do this.
   -dft, --do-fuzzy-test
                         This option adds an additional test of fuzzy match
                         records when the OCLC number was found based only on
                         the 003 label.
   -t, --track-fields    Create an audit log of modified fields.
   -tm, --track-title-matches
-                        Create audit log of fuzzy title matches.
+                        Create audit log of fuzzy title matches that includes
+                        match accuracy metrics.
   -so, --save-oclc      Save records from OCLC to local xml file during while
                         running the replacement task.
   -oc, --oclc-records   Only download marcxml from OCLC, no other tasks

@@ -34,7 +34,7 @@ parser.add_argument('-di', '--database-insert', action='store_true',
                     help='Insert records into database while replacing fields with OCLC API data. '
                          'Requires --use-database flag with database name.')
 parser.add_argument('-nt', '--no-title-check', action='store_false',
-                    help='Skip the fuzzy title match on 245 fields before updating records. You probably do not want '
+                    help='Skip the title match on 245 fields before updating records. You probably do not want '
                          'to do this.')
 parser.add_argument('-dft', '--do-fuzzy-test', action='store_true',
                     help='This option adds an additional test of fuzzy match records when the OCLC number was '
@@ -42,7 +42,7 @@ parser.add_argument('-dft', '--do-fuzzy-test', action='store_true',
 parser.add_argument("-t", "--track-fields", action="store_true",
                     help="Create an audit log of modified fields.")
 parser.add_argument("-tm", "--track-title-matches", action="store_true",
-                    help="Create audit log of fuzzy title matches.")
+                    help="Create audit log of fuzzy title matches that includes match accuracy metrics.")
 parser.add_argument("-so", "--save-oclc", action="store_true",
                     help="Save records from OCLC to local xml file during while running the replacement task.")
 parser.add_argument('-oc', '--oclc-records', action='store_true',
