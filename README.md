@@ -97,7 +97,8 @@ the `--replace-fields` argument and additional arguments such as `--perfect-matc
 If you replace fields you will probably want to review and update the `substitution_array` defined in 
 `replace_configuration.py`. This list determines which fields get updated with OCLC data. There are two
 replacement strategies available: `replace_and_add` and `replace_only`.  The obvious difference is that
-`replace_and_add` (default) will add new fields to the record when provided in the OCLC response.
+`replace_and_add` (default) will add new fields to the record. The `replace_only` strategy simply updates 
+existing fields.
 
 The record locations used for the OCLC number are:
 
