@@ -113,12 +113,12 @@ after records are loaded into the system. To assist with the later review, you c
 add the `--track-title-matches` argument.  This generates a tab-delimited audit file with accuracy metrics
 based on Levenshtein Distance and Jaccard Similarity. Sorting on these metrics can be useful.
 
-The `--do-fuzzy-test` argument is a special case that might be helpful elsewhere.  
-In our data set, OCLC numbers for 001 values without an OCLC prefix ('ocn', 'ocm', or 'on') 
-were highly inaccurate. The `--do-fuzzy-test` argument triggers a secondary evaluate that excludes 
-records that do not meet an accuracy (Levenshtein Distance) threshold. Records that do not meet the 
+The `--do-fuzzy-test` argument is a special case that might be helpful elsewhere. In our data set, 
+OCLC numbers for 001 values without an OCLC prefix ('ocn', 'ocm', or 'on') were highly inaccurate. 
+The `--do-fuzzy-test` argument triggers a secondary evaluation that excludes 
+records that do not meet an accuracy threshold (Levenshtein Distance). Records that do not meet the 
 threshold get written to the `non-modified` records file without an OCLC update. The program replaces 
-the OCLC 001/003 values in the record with a unique local identifier provided by the plugin `set_local_id()` 
+the OCLC 001/003 values in the record with a unique local identifier provided by the plugin's `set_local_id()` 
 method. This sort of fine-tuning is obviously dependent the results you see in your own data.
 
 When you provid the `--perfect-match` argument, records with a perfect match on the OCLC 245(a)(b) subfields
