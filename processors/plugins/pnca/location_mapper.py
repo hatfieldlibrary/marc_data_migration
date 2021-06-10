@@ -35,6 +35,7 @@ class LocationMapper:
         'u': 'pmezzstack',
         'v': 'pmezzstack',
         'z': 'pmezzstack',
+        'new': 'pnew',
         'over': 'pover',
         'zine': 'pzine',
         'periodical': 'pperiod',
@@ -81,6 +82,8 @@ class LocationMapper:
                 return 'dvd'
             if re.match("^zine", lower_case):
                 return 'zine'
+            if re.match("^new", lower_case):
+                return 'new'
             if re.match(r"^(na|nb|nc|nd|ne|nk|nx)", lower_case):
                 call = re.match("^(na|nb|nc|nd|ne|nk|nx)", lower_case)
                 return call.group(0)
