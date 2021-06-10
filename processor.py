@@ -9,6 +9,10 @@ from processors.oclc_update.fetch_marcxml import FetchMarcXMLRecs
 import argparse
 import datetime
 
+# Get developer key. Change path as needed!
+with open('/Users/mspalti/oclc_worldcat_my_key.txt', 'r') as fh:
+    oclc_developer_key = fh.readline().strip()
+
 parser = argparse.ArgumentParser(description='Process marc records.')
 
 parser.add_argument('source', metavar='source', type=str,
@@ -93,9 +97,6 @@ if args.duplicates:
     find_dups.check_duplicates(source, database_name, password, writer)
 
 if args.oclc_records:
-    # Get developer key. Change path as needed!
-    with open('/Users/mspalti/oclc_worldcat_my_key.txt', 'r') as fh:
-        oclc_developer_key = fh.readline().strip()
 
     oclc_xml_writer = open('output/xml/oclc-' + str(dt) + '.xml', 'w')
 
@@ -117,13 +118,6 @@ if args.modify_recs:
     modifier.record_modify(args.source, args.plugin, modified_records_writer, modified_online_writer)
 
 if args.replace_fields:
-
-    # The policy plugin module to use for record modifications.
-    # plugin = 'processors.plugins.pnca.pnca_policy'
-
-    # Get developer key. Change path as needed!
-    with open('/Users/mspalti/oclc_worldcat_my_key.txt', 'r') as fh:
-        oclc_developer_key = fh.readline().strip()
 
     # updated records
     updated_records_writer = TextWriter(open('output/updated-records/updated-records-pretty-' + str(dt) + '.txt', 'w'))
