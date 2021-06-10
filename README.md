@@ -118,8 +118,8 @@ The `--do-fuzzy-test` argument is a special case that might be helpful elsewhere
 OCLC numbers for 001 values without an OCLC prefix ('ocn', 'ocm', or 'on') were highly inaccurate. 
 The `--do-fuzzy-test` argument triggers a secondary evaluation that excludes 
 records that do not meet an accuracy threshold (Levenshtein Distance). Records that do not meet the 
-threshold get written to the `non-modified` records file without an OCLC update. The program replaces 
-the OCLC 001/003 values in the record with a unique local identifier provided by the plugin's `set_local_id()` 
+threshold get written to the `non-modified` records file without an OCLC update after the program replaces 
+the OCLC 001/003 values with a unique local identifier provided by the plugin's `set_local_id()` 
 method. This sort of fine-tuning is obviously dependent the results you see in your own data.
 
 Records that do not have an OCLC match (or are rejected by `--do-fuzzy-test` mentioned above) get written 
