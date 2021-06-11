@@ -77,10 +77,18 @@ You can define rules for modifying records using an `UpdatePolicy` plugin and pr
 the `--plug-in` argument. This package includes the plugin we developed for our migration into Alma and a 
 sample starter plugin.
 
+If you want to modify a record using the plugin, without updating fields with OCLC data, use the `--modify-recs` 
+argument.
+
 ## Reports
 You can run a number of reports that we developed to analyze errors in our records and review
 the output of OCLC field substitution. The analysis of OCLC title matches includes metrics to help with
 determining accuracy.
+
+Optional flags for reports are: `--check-control-field-db`, `--duplicates`, 
+`--check-duplicate-main`, and `--compare_oclc_numbers`.  Several reports require use of the postgres 
+database. Other reports are available when using the `--replace-fields` to update records with OCLC data.
+
 
 ## OCLC API Record Harvesting
 You can harvest OCLC records in two ways. The common and most useful approach adds records to a postgres database 
