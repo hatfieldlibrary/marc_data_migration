@@ -140,6 +140,9 @@ exceed an accuracy threshold (Levenshtein Distance). All other records get writt
 `non-updated-records` file. This may be useful when the data is clean, and you are confident that you can set
 a threshold that excludes any misfits.
 
+If you want to do record transformations in addition to updating records with OCLC data, you can provide a plugin using
+the `--plug-in` argument.  Plugin transformations will be applied after OCLC updates.
+
 # Output Files
 
 ## updated-records
