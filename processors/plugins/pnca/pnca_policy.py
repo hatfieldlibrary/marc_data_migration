@@ -67,7 +67,7 @@ class UpdatePolicy:
         self.__add_location(record, identifier)
         self.__add_inventory(record)
         self.__add_funds(record)
-        self.fix_duplicate_100_field(record)
+        self.__fix_duplicate_100_field(record)
         self.__add_local_field_note(record)
 
     @staticmethod
@@ -111,7 +111,8 @@ class UpdatePolicy:
                         return True
         return False
 
-    def fix_duplicate_100_field(self, record):
+    @staticmethod
+    def __fix_duplicate_100_field(record):
         """
         Quite a few of the exported PNCA records have
         a 100 field and a 130 field indicating language.
@@ -150,7 +151,7 @@ class UpdatePolicy:
         :param type: indicates oclc modification status
         :return:
         """
-        pnca_call_number = self.__get_call_number(record)
+        pnca_call_number = self.__get_call_number_for_logging(record)
         subfield_300a = self.__get_subfield_300a(record)
         title = record.title()
         if subfield_300a is not None and pnca_call_number is not None:
@@ -207,12 +208,14 @@ class UpdatePolicy:
             if field003 == 'OCoLC':
                 if len(field001arr) > 0:
                     if utils.get_oclc_001_value(field001arr[0], field003arr[0]) is None:
+                        # No valid OCLC number found.
                         field003 = 'PNCA'
                         to_update = True
                         self.pnca_id_counter += 1
                     else:
                         # If it appears to be valid OCLC number,
                         # add the 001 value to a local 592 field.
+                        # This can be used for review later.
                         self.__add_592(record, field001arr[0].value())
                         field003 = 'PNCA'
                         to_update = True
@@ -308,51 +311,75 @@ class UpdatePolicy:
         location_mapper = LocationMapper()
         # This is a hack for locations that can't be determined by
         # using the PNCA call number.
-        location_field = self.__get_852b(record)
-        if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
-            try:
-                location = location_mapper.get_location(location_field)
-                self.__replace_location(record, location)
-            except Exception as err:
-                print('error replacing location field.')
-                print(err)
-
-        else:
-            call_number = self.__get_call_number(record)
-            if not call_number:
-                if oclc_number:
-                    print('Missing call number for: ' + oclc_number)
-                else:
-                    print('Missing call number for: ' + record.title())
-            else:
-                try:
-                    location = location_mapper.get_location_by_callnumber(call_number)
-                    if location:
+        fields = record.get_fields('852')
+        for field in fields:
+            location_fields = field.get_subfields('b')
+            # Logically, this should be a single subfield.
+            # Seems important enough to throw an exception.
+            # If we hit a bump, instead print to console
+            # to see if there are multiple errors.
+            if len(location_fields) > 1:
+                raise Exception("Multiple location subfields in " + record.title())
+            for location_field in location_fields:
+                if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
+                    try:
+                        location = location_mapper.get_location(location_field)
                         self.__replace_location(record, location)
-                except Exception as err:
-                    print('error adding location field.')
-                    print(err)
+                    except Exception as err:
+                        print('error replacing location field.')
+                        print(err)
+
+            else:
+                call_numbers = field.get_subfields('h')
+                # Logically, this should be a single subfield.
+                # This seems important enough to throw an exception.
+                if len(call_numbers) > 1:
+                    raise Exception("Multiple call number subfields in " + record.title())
+                for call_number in call_numbers:
+                    if not call_number:
+                        if oclc_number:
+                            print('Missing call number for: ' + oclc_number)
+                        else:
+                            print('Missing call number for: ' + record.title())
+                    else:
+                        try:
+                            location = location_mapper.get_location_by_callnumber(call_number)
+                            if location:
+                                self.__replace_location(record, location)
+                        except Exception as err:
+                            print('error adding location field.')
+                            print(err)
 
     @staticmethod
-    def __get_852b(record):
+    def __modify_call_number(field, call_number):
         """
-        Returns value of 852(b) if available.
-        :param record: pymarc record
+        This could be used to remove PNCA prefixes from
+        852$h. More criteria need to be added to avoid
+        updated non-LC call numbers that require the prefix.
+
+        NOTE: We decided NOT to do this. We need the prefixes
+        to split records into sets for loading.  (Prefixes
+        for LC records can be removed before the sets are
+        loaded into Alma, or using Alma normalization afterwards.)
+
+        :param field:
+        :param call_number:
         :return:
         """
-        location_field = None
-        if len(record.get_fields('852')) > 0:
-            fields = record.get_fields('852')
-            for field in fields:
-                subfields = field.get_subfields('b')
-                if len(subfields) == 1:
-                    location_field = subfields[0]
-        return location_field
+        try:
+            modified_call = re.sub("^(over|periodical|thesis|games|archive|spec|dvd|zine|new)", '', call_number,
+                                   flags=re.I)
+            field.delete_subfield('h')
+            field.add_subfield('h', modified_call)
+
+        except Exception as err:
+            print(err)
 
     @staticmethod
-    def __get_call_number(record):
+    def __get_call_number_for_logging(record):
         """
-        Returns call number found in 852(h)
+        Returns call number found in 852(h).
+        Convenience method for location analysis loggin.
         :param record: record node
         :return: call number
         """
@@ -362,6 +389,9 @@ class UpdatePolicy:
             for field in fields:
                 subfields = field.get_subfields('h')
                 if len(subfields) == 1:
+                    # Assuming single subfield. This should be
+                    # the case, and this method is only used
+                    # for logging.
                     call_number = subfields[0]
         return call_number
 
@@ -373,32 +403,32 @@ class UpdatePolicy:
         :param location: location
         :return:
         """
-        if len(record.get_fields('852')) > 0:
-            try:
-                fields = record.get_fields('852')
-                for field in fields:
-                    field.delete_subfield('b')
-                    field.add_subfield('b', location, 1)
-            except Exception as err:
-                print('Error replacing location in record.')
-                print(err)
+        fields = record.get_fields('852')
+        try:
+            for field in fields:
+                field.delete_subfield('b')
+                field.add_subfield('b', location, 1)
+        except Exception as err:
+            print('Error replacing location in record.')
+            print(err)
 
     @staticmethod
     def __add_location_to_record(record, location):
         """
-        Adds 852(b) to the record. It turns out that this
+        Adds 852(b) to the record.
+
+        NOT USED. It turns out that this
         is dangerous since a few PNCA records already have
-        an 852(b) and leaving it in the record will trip up
-        the Alma import.
+        an 852(b). Leaving it in the record will trip up
+        the Alma import. Use __replace_location().
         :param record: pymarc record
         :param location: location code
         :return:
         """
-        if len(record.get_fields('852')) > 0:
-            try:
-                fields = record.get_fields('852')
-                for field in fields:
-                    field.add_subfield('b', location, 1)
-            except Exception as err:
-                print('Error adding location to record.')
-                print(err)
+        fields = record.get_fields('852')
+        try:
+            for field in fields:
+                field.add_subfield('b', location, 1)
+        except Exception as err:
+            print('Error adding location to record.')
+            print(err)
