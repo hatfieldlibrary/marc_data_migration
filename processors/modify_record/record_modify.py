@@ -40,13 +40,14 @@ class RecordModifier:
                         input_oclc_number = field_035
 
                     # Execute the project-specific update policy.
+                    # TODO: review this to verify it's still correct.
                     if self.update_policy:
                         self.update_policy.execute(record, input_oclc_number)
                         is_online = self.update_policy.is_online(record)
 
                         if is_online:
                             online_writer.write(record)
-
+                    # hmmm...writing to both physical and e-resource output?
                     writer.write(record)
 
             reader.close()
