@@ -32,10 +32,12 @@ class RecordUpdater:
     is_online = False
     replacement_strategy = None
 
+    oclc_api_error_log = open('output/audit/oclc_api_error_log.txt', 'w')
+
     def __init__(self,
                  database_name=None,
                  password=None,
-                 oclc_developer_key = None,
+                 oclc_developer_key=None,
                  modified_writer=None,
                  unmodified_writer=None,
                  bad_writer=None,
@@ -67,7 +69,7 @@ class RecordUpdater:
 
         self.database_name = database_name
         self.password = password
-        self.oclc_developer_key = oclc_developer_key,
+        self.oclc_developer_key = oclc_developer_key
         self.modified_writer = modified_writer
         self.unmodified_writer = unmodified_writer
         self.bad_writer = bad_writer
@@ -136,8 +138,6 @@ class RecordUpdater:
         if require_perfect_match:
             original_fuzzy_writer = TextWriter(
                 open('output/updated-records/fuzzy-original-records-pretty-' + str(dt) + '.txt', 'w'))
-
-        self.oclc_developer_key = self.oclc_developer_key
 
         if self.oclc_xml_writer is not None:
             self.oclc_xml_writer.write('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>')
@@ -276,7 +276,7 @@ class RecordUpdater:
                         if match_ratio == 100:
 
                             self.__process_modified_record(record, oclc_response, oclc_001_value,
-                                                           fuzzy_match_label, 'updated_with_perfect_match')
+                                                           None, 'updated_with_perfect_match')
                             self.__write_record(record)
 
                             modified_count += 1
@@ -738,6 +738,7 @@ class RecordUpdater:
         :param field_value: the oclc number
         :return: oclc response node
         """
+        diagnostic = ''
         oclc_response = self.connector.get_oclc_response(field_value, self.oclc_developer_key)
         oclc_field = oclc_response.find('./*[@tag="001"]')
         # API returns occasional error. Second attempt
@@ -753,7 +754,12 @@ class RecordUpdater:
             oclc_field = oclc_response.find('./*[@tag="001"]')
         if oclc_field is None:
             self.failed_oclc_lookup_count += 1
+            diagnostic = ET.tostring(oclc_response, encoding='unicode', method='xml')
             oclc_response = None
+
+        if oclc_response is None:
+            self.oclc_api_error_log.write('WARNING: No OCLC response for: ' + field_value)
+            self.oclc_api_error_log.write('The response was: ' + diagnostic)
 
         return oclc_response
 

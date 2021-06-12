@@ -25,7 +25,6 @@ class RecordModifier:
                     try:
                         if not record.title():
                             print('Record missing 245(a)')
-                            #missing_required_field_writer.write(record)
                         if len(record.get_fields('001')) == 1:
                             field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                         if len(record.get_fields('035')) > 0:
