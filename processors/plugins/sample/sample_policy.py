@@ -45,7 +45,9 @@ class UpdatePolicy:
     def set_local_id(self, record):
         """
         Sets 001 and 003 fields to use a unique local identifier
-        and label.
+        and label. Because this modifies control fields you'll
+        need to define the replacement rules and determine when,
+        or IF this method is called.
         :param record: pymarc record
         :return:
         """

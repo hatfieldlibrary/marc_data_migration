@@ -189,7 +189,9 @@ class UpdatePolicy:
         PNCA 001 and 003 control fields include a lot of
         duplicates. These need to be replaced to the extent possible.
         This function replaces the 003 with a PNCA label and assigns a unique,
-        incremented value to 001 whenever conditions are met.
+        incremented value to 001 whenever conditions are met. It only
+        makes sense to call this method for unmodified records that lack
+        an OCLC number, or when the apparent OCoLC number is invalid.
         :param record: pymarc record
         :return:
         """
