@@ -106,12 +106,12 @@ If you like, you can also write OCLC records to a MARCXML file.
 
 ## Updating with OCLC Data
 If your records need a serious fix, you can update fields and/or add new fields using data retrieved 
-from OCLC. For larger projects, this will require and OCLC API developer key (the path to key is defined 
+from OCLC. For larger projects, this will require an OCLC API developer key (the path to key is defined 
 in `proccessor.py`). Use the `--replace-fields` argument and additional arguments such as `--perfect-match`, 
 `--track-title-matches`, and `--use-database`.
 
-If you decide to replace fields you should review and possibly update the `substitution_array` defined in 
-`replace_configuration.py`. This list determines which fields get updated with OCLC data. There are two
+If you decide to replace fields, you should review and possibly update the `substitution_array` defined in 
+`replace_configuration.py`. This list determines which fields get updated with OCLC data. Also, there are two
 replacement strategies available: `replace_and_add` and `replace_only`.  The obvious difference is that
 `replace_and_add` (default) will add new fields to the record. The `replace_only` strategy simply updates 
 existing fields.
@@ -124,31 +124,34 @@ The record locations used for the OCLC number in order of precedence are:
 
 When using the `--perfect-match` argument, only records with perfect matches on OCLC 245(a)(b)
 get written to the `updated-records` file. For imperfect matches, the program updates the record with OCLC
-data, but writes the output to a `fuzzy-updated-records` file for later review. A `fuzzy-match-passed` 
-or `fuzzy-match-failed` label gets added to the 962 field so these records can be found for review
-after records are loaded into the system. To assist with the later review, you can
-add the `--track-title-matches` argument.  This generates a tab-delimited audit file with accuracy metrics
-based on Levenshtein Distance and Jaccard Similarity. Sorting on these metrics can be useful.
+data and writes the output to a `fuzzy-updated-records` file for later review. It also adds a `fuzzy-match-passed` 
+or `fuzzy-match-failed` label to the 962 field so records can be reviewed later,
+after they are loaded into the system.  If you
+add the `--track-title-matches` argument the program generates a tab-delimited audit file with accuracy metrics
+based on Levenshtein Distance and Jaccard Similarity. Sorting on these metrics can be useful during view
+and for identifying problems early.
 
-The `--do-fuzzy-test` argument is a special case that might be helpful elsewhere. In our data set, 
-OCLC numbers for 001 values without an OCLC prefix ('ocn', 'ocm', or 'on') were highly inaccurate. 
-The `--do-fuzzy-test` argument triggers a secondary evaluation that excludes 
-records that do not meet an accuracy threshold (Levenshtein Distance). Records that do not meet the 
-threshold get written to the `non-modified` records file without an OCLC update after the program replaces 
+The `--do-fuzzy-test` argument is a special case that might be helpful in some cases. In our data set, 
+OCLC numbers for 001 values without an OCLC prefix ('ocn', 'ocm', or 'on') were inaccurate. 
+We used the `--do-fuzzy-test` argument to trigger a secondary evaluation that excludes 
+records below an accuracy threshold (Levenshtein Distance). Records that do not meet the 
+threshold get written to the `non-modified` records file with no OCLC update. Since you probably want to
+remove the invalid OCLC number from the record, the program replaces 
 the OCLC 001/003 values with a unique local identifier provided by the plugin's `set_local_id()` 
-method. This sort of fine-tuning is obviously dependent the results you see in your own data.
+method. The exact nature of this fine-tuning is dependents your data and requirements, which is why it's delegated
+in your plugin.
 
 Records that do not have an OCLC match (or are rejected by `--do-fuzzy-test` mentioned above) get written 
 to a `non-updated-records` file.
 
-When not using the `--perfect-match` you get quite different results.  The program does not write records to the 
+When not using the `--perfect-match` you get different results.  The program does not write records to a 
 `fuzzy-updated-records` file.  Instead, records get updated and added to the `updated-records` file when they meet or
 exceed an accuracy threshold (Levenshtein Distance). All other records get written to the 
-`non-updated-records` file. This may be useful when the data is clean, and you are confident that you can set
-a threshold that excludes any misfits.
+`non-updated-records` file. This may be useful when the data is clean, and you have a threshold fuzzy match ratio
+ that excludes any misfits.
 
-If you want to do record transformations in addition to updating records with OCLC data, you can provide a plugin using
-the `--plug-in` argument.  Plugin transformations will be applied after OCLC updates.
+If you want to do record transformations at the same time that you update records with OCLC data, you can provide 
+the plugin using the `--plug-in` argument.  Plugin transformations will be applied after OCLC updates.
 
 # Output Files
 
