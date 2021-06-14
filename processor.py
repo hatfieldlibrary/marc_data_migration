@@ -78,7 +78,7 @@ password = 'Sibale2'
 
 if args.check_control_field_db:
     reporter = ReportProcessor()
-    reporter.analyze_duplicate_control_fields(source, password)
+    reporter.analyze_duplicate_control_fields(source, database_name, password)
 
 if args.check_duplicate_title:
     reporter = ReportProcessor()
