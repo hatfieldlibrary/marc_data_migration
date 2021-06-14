@@ -10,9 +10,9 @@ The features are:
 * Functions for generating reports.
 
 ```
-usage: processor.py [-h] [-p plugin name] [-m] [-r] [-pm] [-db database name]
-                    [-di] [-nt] [-dft] [-t] [-tm] [-so] [-oc] [-ccf] [-d]
-                    [-dupt] [-dupm] [-comp]
+usage: processor.py [-h] [-p plugin name] [-m] [-r] [-pm]
+                    [-database database name] [-udb] [-adb] [-nt] [-dft] [-t]
+                    [-tm] [-so] [-oc] [-ccf] [-d] [-dupt] [-dupm] [-comp]
                     source
 
 Process marc records.
@@ -30,14 +30,17 @@ optional arguments:
   -pm, --perfect-match  Perfect OCLC title match will be required; records
                         with lower fuzzy match ratios are written to a
                         separate file.
-  -db database name, --use-database database name
+  -database database name, --database-name database name
                         Provide name of the postgres database name to use
                         instead of the OCLC API. This significantly speeds up
                         processing.
-  -di, --database-insert
-                        Insert records into database while replacing fields
-                        with OCLC API data. Requires --use-database flag with
-                        database name.
+  -udb, --use-database  While replacing fields with OCLC API data insert
+                        records into the provided database. Requires --use-
+                        database flag with database name.
+  -adb, --add-to-database
+                        While replacing fields with OCLC API data insert
+                        records into the provided database. Requires --use-
+                        database flag with database name.
   -nt, --no-title-check
                         Skip the title match on 245 fields before updating
                         records. You probably do not want to do this.
@@ -85,15 +88,19 @@ You can run a number of reports that we developed to analyze errors in our recor
 the output of OCLC field substitution. The analysis of OCLC title matches includes metrics to help with
 determining accuracy.
 
-Optional flags for reports are: `--check-control-field-db`, `--duplicates`, 
-`--check-duplicate-main`, and `--compare_oclc_numbers`.  Several reports require use of the postgres 
-database. Other reports are available when using the `--replace-fields` to update records with OCLC data.
+Some optional reports are only available when using the
+`--replace-fields` argument to update records with OCLC data: `--track-fields`,
+`--track-title-matches`. Other optional report run independently: `--check-control-field-db`, `--duplicates`,
+`--check-duplicate-main`, and `--compare_oclc_numbers`. Some of these reports use a relational database table.
+
+These reports are admittedly ad hoc and may not be useful for other projects.  See `reporting` directory for details.
 
 
 ## OCLC API Record Harvesting
 You can harvest OCLC records in two ways. The common and most useful approach adds records to a postgres database 
-using the `--database-insert` option. You can then use the database for subsequent processing by adding the `-db` flag 
-and providing the database name (and optionally the password). This is recommended to speed up processing.
+using the `--add-to-database` option. You can then use the database for subsequent processing by adding the 
+`--use-database` argument and providing the database name via the `--database-name` argument (and optionally the 
+password). This is recommended to speed up processing.
 
 If you like, you can also write OCLC records to a MARCXML file.  
 
@@ -101,7 +108,7 @@ If you like, you can also write OCLC records to a MARCXML file.
 If your records need a serious fix, you can update fields and/or add new fields using data retrieved 
 from OCLC. For larger projects, this will require and OCLC API developer key (the path to key is defined 
 in `proccessor.py`). Use the `--replace-fields` argument and additional arguments such as `--perfect-match`, 
-`--track-title-matches`, and `--db`.
+`--track-title-matches`, and `--use-database`.
 
 If you decide to replace fields you should review and possibly update the `substitution_array` defined in 
 `replace_configuration.py`. This list determines which fields get updated with OCLC data. There are two
