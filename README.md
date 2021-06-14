@@ -90,7 +90,7 @@ determining accuracy.
 
 Some optional reports are only available when using the
 `--replace-fields` argument to update records with OCLC data: `--track-fields`,
-`--track-title-matches`. Other optional report run independently: `--check-control-field-db`, `--duplicates`,
+`--track-title-matches`. Other optional reports can be run independently: `--check-control-field-db`, `--duplicates`,
 `--check-duplicate-main`, and `--compare_oclc_numbers`. Some of these reports use a relational database table.
 
 These reports are admittedly ad hoc and may not be useful for other projects.  See `reporting` directory for details.
