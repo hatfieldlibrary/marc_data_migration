@@ -29,6 +29,7 @@ class RecordUpdater:
     updated_leader_count = 0
     processed_records_count = 0
 
+    update_policy = None
     is_online = False
     replacement_strategy = None
 
@@ -87,7 +88,8 @@ class RecordUpdater:
                                  plugin,
                                  require_perfect_match,
                                  title_check,
-                                 database_insert,
+                                 add_to_database,
+                                 use_database,
                                  do_fuzzy_001_test=False,
                                  fuzzy_match_ratio=50,
                                  replacement_strategy='replace_and_add') -> None:
@@ -98,7 +100,8 @@ class RecordUpdater:
         :param plugin The module to use when modifying records
         :param require_perfect_match If True a perfect title match with OCLC is required
         :param title_check If true will do 245ab title match
-        :param database_insert If true insert API repsonse into database
+        :param add_to_database If true insert API response into database
+        :param use_database If true retrieve OCLC records from the database
         :param do_fuzzy_001_test Indicates whether a separate test is run when fuzzy matching 001/003 combinations
         Default False.
         :param fuzzy_match_ratio The value used in fuzzy match logging to determine pass/fail status. Default 50.
@@ -130,7 +133,7 @@ class RecordUpdater:
         missing_required_field_writer = TextWriter(
             open('output/audit/missing-245a-pretty-' + str(dt) + '.txt', 'w'))
 
-        if database_insert:
+        if not use_database:
             bad_oclc_reponse_writer = open('output/xml/bad-oclc-response-' + str(dt) + '.xml', 'w')
         else:
             bad_oclc_reponse_writer = None
@@ -147,12 +150,21 @@ class RecordUpdater:
 
         conn = None
         cursor = None
-        if self.database_name:
-            # If database provided, initialize the connection and set cursor.
-            db_connect = DatabaseConnector()
-            conn = db_connect.get_connection(self.database_name, self.password)
-            print("Database opened successfully.")
-            cursor = conn.cursor()
+
+        if use_database or add_to_database:
+            if not self.database_name:
+                raise Exception("You need to provide the database name.")
+            else:
+                # If database provided, initialize the connection and set cursor.
+                db_connect = DatabaseConnector()
+                conn = db_connect.get_connection(self.database_name, self.password)
+                print("Database opened successfully.")
+                cursor = conn.cursor()
+
+        # If adding records to database we need purge any existing records.
+        if add_to_database:
+            cursor.exectute('DELETE FROM oclc')
+            conn.commit()
 
         wrapper = MarcReader()
         reader = wrapper.get_reader(file)
@@ -209,7 +221,7 @@ class RecordUpdater:
                     # If OCLC number was found, retrieve data from
                     # the Worldcat API or the local database.
                     if input_oclc_number:
-                        oclc_response = self.__get_oclc_response(input_oclc_number, cursor, database_insert)
+                        oclc_response = self.__get_oclc_response(input_oclc_number, cursor, add_to_database)
 
                     if oclc_response is not None:
 
@@ -226,7 +238,7 @@ class RecordUpdater:
                                                                           encoding='utf8',
                                                                           method='xml'))
                         # Add record to database if requested.
-                        if input_oclc_number and database_insert:
+                        if input_oclc_number and add_to_database:
                             self.__database_insert(cursor,
                                                    conn,
                                                    input_oclc_number,
@@ -408,7 +420,7 @@ class RecordUpdater:
 
         print('Total fields replaced: ' + str(field_c))
         print()
-        if database_insert:
+        if not use_database:
             print('Failed OCLC record retrieval count: ' + str(self.failed_oclc_lookup_count))
         print()
         if self.update_policy:

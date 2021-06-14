@@ -27,11 +27,14 @@ parser.add_argument('-r', '--replace-fields', action='store_true',
 parser.add_argument('-pm', '--perfect-match', action='store_true',
                     help='Perfect OCLC title match will be required; records with lower fuzzy match '
                          'ratios are written to a separate file.')
-parser.add_argument('-db', '--use-database', metavar='database name', type=str,
+parser.add_argument('-database', '--database-name', metavar='database name', type=str,
                     help='Provide name of the postgres database name to use instead of the OCLC API. '
                          'This significantly speeds up processing.')
-parser.add_argument('-di', '--database-insert', action='store_true',
-                    help='Insert records into database while replacing fields with OCLC API data. '
+parser.add_argument('-udb', '--use-database', action='store_true',
+                    help='While replacing fields with OCLC API data insert records into the provided database. '
+                         'Requires --use-database flag with database name.')
+parser.add_argument('-adb', '--add-to-database', action='store_true',
+                    help='While replacing fields with OCLC API data insert records into the provided database. '
                          'Requires --use-database flag with database name.')
 parser.add_argument('-nt', '--no-title-check', action='store_false',
                     help='Skip the title match on 245 fields before updating records. You probably do not want '
@@ -69,7 +72,7 @@ if not source:
     raise AssertionError("You must provide a source file.")
 
 # optional database name to use instead of OCLC API
-database_name = args.use_database
+database_name = args.database_name
 # if database requires password replace empty string
 password = 'Sibale2'
 
@@ -185,7 +188,8 @@ if args.replace_fields:
                                      args.plugin,
                                      args.perfect_match,
                                      args.no_title_check,
-                                     args.database_insert,
+                                     args.add_to_database,
+                                     args.use_database,
                                      args.do_fuzzy_test,
                                      fuzzy_match_ratio=50,
                                      replacement_strategy='replace_and_add')
