@@ -127,7 +127,7 @@ get written to the `updated-records` file. For imperfect matches, the program up
 data and writes the output to a `fuzzy-updated-records` file for later review. It also adds a `fuzzy-match-passed` 
 or `fuzzy-match-failed` label to the 962 field so records can be reviewed later,
 after they are loaded into the system.  If you
-add the `--track-title-matches` argument the program generates a tab-delimited audit file with accuracy metrics
+add the `--track-title-matches` argument, the program generates a tab-delimited audit file with accuracy metrics
 based on Levenshtein Distance and Jaccard Similarity. Sorting on these metrics can be useful during view
 and for identifying problems early.
 
