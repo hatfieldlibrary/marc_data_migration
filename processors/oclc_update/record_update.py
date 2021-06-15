@@ -163,7 +163,7 @@ class RecordUpdater:
 
         # If adding records to database we need purge any existing records.
         if add_to_database:
-            cursor.exectute('DELETE FROM oclc')
+            cursor.execute('DELETE FROM oclc')
             conn.commit()
 
         wrapper = MarcReader()
