@@ -1,9 +1,9 @@
 from pymarc import TextWriter
 
+from processors.reporting.check_duplicates import CheckDuplicates
 from processors.reporting.reports import ReportProcessor
 from processors.modify_record.record_modify import RecordModifier
 from processors.reporting.check_oclc_numbers import CompareOclcNumbers
-from scripts.duplicate_record_check import CheckDuplicates
 from processors.oclc_update.record_update import RecordUpdater
 from processors.oclc_update.fetch_marcxml import FetchMarcXMLRecs
 import argparse
