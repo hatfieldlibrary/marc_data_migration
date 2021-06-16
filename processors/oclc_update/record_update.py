@@ -287,8 +287,8 @@ class RecordUpdater:
 
                         if match_ratio == 100:
 
-                            self.__process_modified_record(record, oclc_response, oclc_001_value,
-                                                           None, 'updated_with_perfect_match')
+                            self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                                             None, 'updated_with_perfect_match')
                             self.__write_record(record)
 
                             modified_count += 1
@@ -334,8 +334,8 @@ class RecordUpdater:
                                     utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
                                                           match_ratio, fuzzy_match_ratio, oclc_001_value,
                                                           self.title_log_writer)
-                                    self.__process_modified_record(record, oclc_response, oclc_001_value,
-                                                                   fuzzy_match_label, 'updated_with_fuzzy_match')
+                                    self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                                                     fuzzy_match_label, 'updated_with_fuzzy_match')
                                     self.__write_fuzzy_record(record)
                                     fuzzy_record_count += 1
                                     modified_count += 1
@@ -346,8 +346,8 @@ class RecordUpdater:
                                 utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
                                                       match_ratio, fuzzy_match_ratio,
                                                       oclc_001_value, self.title_log_writer)
-                                self.__process_modified_record(record, oclc_response, oclc_001_value,
-                                                               fuzzy_match_label, 'updated_with_fuzzy_match')
+                                self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                                                 fuzzy_match_label, 'updated_with_fuzzy_match')
                                 self.__write_fuzzy_record(record)
                                 fuzzy_record_count += 1
                                 modified_count += 1
@@ -366,8 +366,8 @@ class RecordUpdater:
                                 utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
                                                       match_ratio, fuzzy_match_ratio,
                                                       oclc_001_value, self.title_log_writer)
-                                self.__process_modified_record(record, oclc_response, oclc_001_value,
-                                                               fuzzy_match_label, 'updated_with_fuzzy_match')
+                                self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                                                 fuzzy_match_label, 'updated_with_fuzzy_match')
                                 self.__write_fuzzy_record(record)
                                 fuzzy_record_count += 1
                                 modified_count += 1
@@ -426,7 +426,7 @@ class RecordUpdater:
         if self.update_policy:
             self.update_policy.print_online_record_counts()
 
-    def __process_modified_record(self, record, oclc_response, value001, fuzzy_match_label, update_label):
+    def __process_oclc_replacements(self, record, oclc_response, value001, fuzzy_match_label, update_label):
         """
         Process records modified with OCLC data.
         :param record: pymarc record
@@ -563,7 +563,7 @@ class RecordUpdater:
         return None
 
     @staticmethod
-    def __remove_1xx_fields(field, record):
+    def __remove_fields(field, record):
         """
         Removes 1xx fields. This should be called before
         adding OCLC data to the record.
@@ -609,8 +609,6 @@ class RecordUpdater:
                          + replacement_field + '\t'
                          + field.value() + '\t'
                          + single_field + '\n')
-
-        field_count.update_field_count(replacement_field)
 
     def __move_field(self, record, current_field_tag, new_field_tag):
         """
@@ -671,7 +669,7 @@ class RecordUpdater:
             original_fields = record.get_fields(replacement_field_tag)
             field_001 = record['001'].value()
             # remove replacement fields from the original record
-            self.__remove_1xx_fields(replacement_field_tag, record)
+            self.__remove_fields(replacement_field_tag, record)
             for f in tags:
                 field = field_generator.get_data_field(f, f.attrib, replacement_field_tag)
                 if field:
@@ -680,6 +678,8 @@ class RecordUpdater:
                                                   field_001)
                     # add new field with OCLC data to record
                     record.add_ordered_field(field)
+                    # increment field count
+                    field_count.update_field_count(replacement_field_tag)
         else:
             # The policy plugin may define fields that should be moved to a
             # local field when they are not replaced by OCLC data.
@@ -812,7 +812,7 @@ class RecordUpdater:
         Handles all OCLC field replacements
         :param oclc_001_value: the 001 value from OCLC
         :param record: the record node
-        :param oclc_response: the reponse from OCLC
+        :param oclc_response: the response from OCLC
         :return:
         """
         if not self.replacement_strategy:
