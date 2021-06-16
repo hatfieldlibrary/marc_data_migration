@@ -56,8 +56,9 @@ optional arguments:
                         running the replacement task.
   -oc, --oclc-records   Only download marcxml from OCLC, no other tasks
                         performed.
-  -ccf, --check-control-field-db
-                        Reports duplicate 001/003 combinations.
+  -ccf, --check-duplicate-control-field
+                        Reports duplicate 001/003 combinations. You must
+                        provide a test database name.
   -d, --duplicates      Checks for duplicate OCLC numbers in the database.
   -dupt, --check-duplicate-title
                         Check for duplicate 245 fields.
