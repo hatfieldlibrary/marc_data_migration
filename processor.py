@@ -107,8 +107,6 @@ if args.oclc_records:
     fetch_recs.fetch_marcxml(source, oclc_xml_writer, oclc_developer_key)
 
 if args.modify_recs:
-    # The policy plugin module to use for record modifications.
-    # plugin = 'processors.plugins.pnca.pnca_policy'
 
     # modified records
     modified_records_writer = TextWriter(

@@ -11,24 +11,24 @@ class ReportProcessor:
 
     dt = datetime.datetime.now()
 
-    def analyze_duplicate_control_fields(self, file, database, password):
+    def analyze_duplicate_control_fields(self, file, database_name, password):
         """
         Reports on records in set that have duplicate 001/003 combinations
         Uses a postgres database for analysis.  This is awkward
-        but effective. table name
-        'recs.'  Table columns 'field001' and 'field003.' Column types
-        'varchar.'
+        but effective.
+        table name 'recs.'  Table columns 'field001' and 'field003' Column types
+        'varchar'
         :param file: the file containing records
-        :param database: the database name
+        :param database_name: the database name
         :param password: the database password
         :return:
         """
         dup_writer = open('output/audit/duplicate_control_fields-' + str(self.dt) + '.txt', 'w')
         print('Loading database.  This will take a few minutes.')
-        self.__load_database(file, database, password)
+        self.__load_database(file, database_name, password)
         print('Database is loaded. Creating report.')
         database = DatabaseConnector()
-        conn = database.get_connection(database, password)
+        conn = database.get_connection(database_name, password)
         cursor = conn.cursor()
         cursor.execute('SELECT field001, field003, count(*) FROM recs '
                        'GROUP BY field001, field003 HAVING count(*) > 1')
@@ -70,7 +70,7 @@ class ReportProcessor:
         conn.close()
 
     @staticmethod
-    def __load_database(file, database, password):
+    def __load_database(file, database_name, password):
         """
         Loads the database after first assuring that the 'recs'
         table is empty.
@@ -82,7 +82,7 @@ class ReportProcessor:
         wrapper = MarcReader()
         reader = wrapper.get_reader(file)
         database = DatabaseConnector()
-        conn = database.get_connection(database, password)
+        conn = database.get_connection(database_name, password)
         cursor = conn.cursor()
         # delete existing
         cursor.execute('DELETE FROM recs')
