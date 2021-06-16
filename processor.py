@@ -51,8 +51,8 @@ parser.add_argument("-so", "--save-oclc", action="store_true",
 parser.add_argument('-oc', '--oclc-records', action='store_true',
                     help='Only download marcxml from OCLC, no other '
                          'tasks performed.')
-parser.add_argument("-ccf", "--check-control-field-db", action="store_true",
-                    help="Reports duplicate 001/003 combinations.")
+parser.add_argument("-ccf", "--check-duplicate-control-field", action="store_true",
+                    help="Reports duplicate 001/003 combinations. You must provide a test database name.")
 parser.add_argument('-d', '--duplicates', action='store_true',
                     help='Checks for duplicate OCLC numbers in the database.')
 parser.add_argument("-dupt", "--check-duplicate-title", action="store_true",
@@ -76,7 +76,7 @@ database_name = args.database_name
 # if database requires password replace empty string
 password = 'Sibale2'
 
-if args.check_control_field_db:
+if args.check_duplicate_control_field:
     reporter = ReportProcessor()
     reporter.analyze_duplicate_control_fields(source, database_name, password)
 
