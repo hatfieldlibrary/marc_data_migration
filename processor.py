@@ -65,8 +65,8 @@ parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
                          'the response and with the original input file. Logs the discrepancies for analysis.')
 parser.add_argument("-encheck", "--encoding-check", action="store_true",
                     help="Uses chardet to guess at the source file encoding.")
-parser.add_argument("-enc", "--encoding", metavar='file character encoding', type=str,
-                    help="File encoding of the source file.")
+parser.add_argument("-enc", "--encoding", metavar='the source file encoding', type=str,
+                    help="The character encoding of the source file. Provide if necessary.")
 
 args = parser.parse_args()
 
