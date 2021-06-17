@@ -13,6 +13,7 @@ The features are:
 usage: processor.py [-h] [-p plugin name] [-m] [-r] [-pm]
                     [-database database name] [-udb] [-adb] [-nt] [-dft] [-t]
                     [-tm] [-so] [-oc] [-ccf] [-d] [-dupt] [-dupm] [-comp]
+                    [-encheck] [-enc file character encoding]
                     source
 
 Process marc records.
@@ -68,6 +69,10 @@ optional arguments:
                         Retrieve OCLC records and compare oclc numbers in the
                         response and with the original input file. Logs the
                         discrepancies for analysis.
+  -encheck, --encoding-check
+                        Uses chardet to guess at the source file encoding.
+  -enc file character encoding, --encoding file character encoding
+                        File encoding of the source file.
                         
 Example:
 
