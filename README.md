@@ -13,7 +13,7 @@ The features are:
 usage: processor.py [-h] [-p plugin name] [-m] [-r] [-pm]
                     [-database database name] [-udb] [-adb] [-nt] [-dft] [-t]
                     [-tm] [-so] [-oc] [-ccf] [-d] [-dupt] [-dupm] [-comp]
-                    [-encheck] [-enc file character encoding]
+                    [-encheck] [-enc the source file encoding]
                     source
 
 Process marc records.
@@ -71,9 +71,10 @@ optional arguments:
                         discrepancies for analysis.
   -encheck, --encoding-check
                         Uses chardet to guess at the source file encoding.
-  -enc file character encoding, --encoding file character encoding
-                        File encoding of the source file.
-                        
+  -enc the source file encoding, --encoding the source file encoding
+                        The character encoding of the source file. Provide if
+                        necessary.
+                                                
 Example:
 
 process.py --replace-fields --perfect-match --plug-in processors.plugins.lib.lib_policy 
