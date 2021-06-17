@@ -91,6 +91,7 @@ class RecordUpdater:
                                  add_to_database,
                                  use_database,
                                  do_fuzzy_001_test=False,
+                                 encoding=None,
                                  fuzzy_match_ratio=50,
                                  replacement_strategy='replace_and_add') -> None:
         """
@@ -104,6 +105,7 @@ class RecordUpdater:
         :param use_database If true retrieve OCLC records from the database
         :param do_fuzzy_001_test Indicates whether a separate test is run when fuzzy matching 001/003 combinations
         Default False.
+        :param encoding optional encoding parameter.
         :param fuzzy_match_ratio The value used in fuzzy match logging to determine pass/fail status. Default 50.
         :param replacement_strategy strategy used for OCLC replacement values. Default is replace_and_add
         :return:
@@ -167,7 +169,11 @@ class RecordUpdater:
             conn.commit()
 
         wrapper = MarcReader()
-        reader = wrapper.get_reader(file)
+        if encoding:
+            # Get reader method using optional encoding.
+            reader = wrapper.get_reader_unicode(file, encoding)
+        else:
+            reader = wrapper.get_reader(file)
 
         for record in reader:
             if record:

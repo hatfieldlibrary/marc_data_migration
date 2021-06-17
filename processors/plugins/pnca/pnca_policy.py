@@ -434,3 +434,4 @@ class UpdatePolicy:
         except Exception as err:
             print('Error adding location to record.')
             print(err)
+

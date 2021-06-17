@@ -1,5 +1,6 @@
 from pymarc import TextWriter
 
+from processors.encoding_utils.encoding import EncodingUtils
 from processors.reporting.check_duplicates import CheckDuplicates
 from processors.reporting.reports import ReportProcessor
 from processors.modify_record.record_modify import RecordModifier
@@ -62,6 +63,10 @@ parser.add_argument("-dupm", "--check-duplicate-main", action="store_true",
 parser.add_argument('-comp', '--compare_oclc_numbers', action='store_true',
                     help='Retrieve OCLC records and compare oclc numbers in '
                          'the response and with the original input file. Logs the discrepancies for analysis.')
+parser.add_argument("-encheck", "--encoding-check", action="store_true",
+                    help="Uses chardet to guess at the source file encoding.")
+parser.add_argument("-enc", "--encoding", metavar='file character encoding', type=str,
+                    help="File encoding of the source file.")
 
 args = parser.parse_args()
 
@@ -75,6 +80,10 @@ if not source:
 database_name = args.database_name
 # if database requires password replace empty string
 password = 'Sibale2'
+
+if args.encoding_check:
+    enc = EncodingUtils()
+    enc.detect_encoding(source)
 
 if args.check_duplicate_control_field:
     reporter = ReportProcessor()
@@ -189,6 +198,7 @@ if args.replace_fields:
                                      args.add_to_database,
                                      args.use_database,
                                      args.do_fuzzy_test,
+                                     encoding=args.encoding,
                                      fuzzy_match_ratio=50,
                                      replacement_strategy='replace_and_add')
 
