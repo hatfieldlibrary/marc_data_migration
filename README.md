@@ -98,9 +98,16 @@ determining accuracy.
 Some optional reports are only available when using the
 `--replace-fields` argument to update records with OCLC data: `--track-fields`,
 `--track-title-matches`. Other optional reports can be run independently: `--check-control-field-db`, `--duplicates`,
-`--check-duplicate-main`, and `--compare_oclc_numbers`. Some of these reports use a relational database table.
+`--check-duplicate-main`, and `--compare_oclc_numbers`. Some of these reports use a relational database table that
+you will need to provide.
 
-These reports are admittedly ad hoc and may not be useful for other projects.  See `reporting` directory for details.
+Use `--encoding-check` if you want to verify the character encoding used by the input file. If necessary, 
+you can pass this file encoding to pymarc and python 3 using the `--encoding` argument during processing.
+If an encoding is not provided, pymarc assumes `iso8859-1`, and does `MARC-8` translation unless `UTF-8` is specified
+in leader. If your input file uses another encoding, like `Windows-1252`, that can lead to errors. See
+https://pymarc.readthedocs.io/en/latest/_modules/pymarc/record.html#Record for details.
+
+These reports are admittedly ad hoc and may not be useful for other projects.  
 
 
 ## OCLC API Record Harvesting
