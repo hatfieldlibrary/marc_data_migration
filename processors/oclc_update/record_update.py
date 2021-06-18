@@ -217,7 +217,7 @@ class RecordUpdater:
                     input_oclc_number = field_001
 
                 if self.update_policy:
-                    # Note that the online records file is only created
+                    # Note that the online records are only processed separately
                     # when using a plugin. This is because determining
                     # the online status varies between systems and/or
                     # cataloging conventions.
@@ -310,8 +310,8 @@ class RecordUpdater:
                             # file so the original is available to the reviewer.
                             original_fuzzy_writer.write(record)
 
-                            # If the do_fuzzy_001_test parameter is True we compensate for
-                            # invalid OCLC numbers in the 003/001 field combination..
+                            # If the do_fuzzy_001_test parameter is True, compensate for
+                            # invalid OCLC numbers in the 003/001 field combination.
                             if test_001:
                                 # When the match_ratio for this record is less than the test_ratio,
                                 # the record is not updated with OCLC data and instead is written to the
