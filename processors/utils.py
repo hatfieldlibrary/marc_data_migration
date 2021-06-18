@@ -84,12 +84,12 @@ def get_035(record):
             subfields = field.get_subfields('a')
             if len(subfields) > 1:
                 print('duplicate 035a')
-            elif len(subfields) == 1:
-                field_035 = __get_oclc_035_value(subfields[0])
+            field_035 = __get_oclc_035_value(subfields)
+
     return field_035
 
 
-def __get_oclc_035_value(field_035):
+def __get_oclc_035_value(fields):
     """
     Returns value from the 035 field. Verifies that
     the field contains the (OCoLC) identifier. Removes the
@@ -98,17 +98,23 @@ def __get_oclc_035_value(field_035):
     :param: field_035 The 035a string value
     :return: The 035 value or None if not OCLC record
     """
-    if field_035:
-        if 'OCoLC' in field_035:
-            try:
-                oclc_number = field_035.replace('(OCoLC)', '')
-                match = valid_format_regex.match(oclc_number)
-                if match:
-                    oclc_number = remove_control_field_extra_chars(oclc_number)
-                    return oclc_number
-            except Exception as err:
-                print(err)
-    return None
+    oclc_number = None
+    for field_035 in fields:
+        if field_035:
+            if 'OCoLC' in field_035:
+                try:
+                    oclc_number = field_035.replace('(OCoLC)', '')
+                    if "OCM" in oclc_number:
+                        print()
+                    # Based on experience, going case insensitive for this field.
+                    oclc_number = re.sub('(ocn|ocm|on)', '', oclc_number, flags=re.IGNORECASE)
+                    match = valid_format_regex.match(oclc_number)
+                    if match:
+                        oclc_number = remove_control_field_extra_chars(oclc_number)
+                        break
+                except Exception as err:
+                    print(err)
+    return oclc_number
 
 
 def get_oclc_title(oclc_response):
