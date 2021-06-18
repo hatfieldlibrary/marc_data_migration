@@ -1,7 +1,7 @@
 # Record Modification Tool
 
 Python modules created for migration of Pacific Northwest College of Art (PNCA) records exported from Alexandria to 
-Alma (Orbis-Cascade Alliance SLIS). Uses [pymarc](https://gitlab.com/pymarc/pymarc).
+Alma (Orbis-Cascade Alliance SLIS). Uses [pymarc](https://gitlab.com/pymarc/pymarc). Requires Python 3.
 
 The features are:
 
