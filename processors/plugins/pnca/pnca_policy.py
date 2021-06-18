@@ -12,6 +12,8 @@ class UpdatePolicy:
     The idiosyncratic parts of our PNCA migration to Alma live here.
     """
 
+    location_mapper = LocationMapper()
+
     dt = datetime.datetime.now()
     mat_type_log_writer = open('output/audit/mat-type-analysis-' + str(dt) + '.txt', 'w')
 
@@ -69,6 +71,8 @@ class UpdatePolicy:
         self.__add_funds(record)
         self.__fix_duplicate_100_field(record)
         self.__add_local_field_note(record)
+        self.__remove_035(record)
+
 
     @staticmethod
     def conditional_move_tags():
@@ -202,7 +206,7 @@ class UpdatePolicy:
             field003 = field003arr[0].value()
             # always replace these
             if field003 == 'COMPanion' or field003 == 'CStRLIN' or field003 == 'DSS'\
-                    or field003 == 'DLC' or field003 == '':
+                    or field003 == 'DLC' or field003 == '' or field003 == 'PNCA':
                 field003 = 'PNCA'
                 to_update = True
                 self.pnca_id_counter += 1
@@ -234,6 +238,16 @@ class UpdatePolicy:
             new003 = Field(tag='003', data=field003)
             record.add_ordered_field(new001)
             record.add_ordered_field(new003)
+
+    @staticmethod
+    def __remove_035(record):
+        """
+        This is an important cleanup step so it's defined in it's
+        own function.
+        :param record: pymarc record
+        :return:
+        """
+        record.remove_fields('035')
 
     @staticmethod
     def __add_592(record, value001):
@@ -282,7 +296,7 @@ class UpdatePolicy:
                 arr = s.split('|')
                 for item in arr:
                     if re.match('^Inventory', item):
-                        field.add_subfield('i', item)
+                        field.add_subfield('y', item)
 
     @staticmethod
     def __add_funds(record):
@@ -297,7 +311,7 @@ class UpdatePolicy:
                 arr = s.split('|')
                 for item in arr:
                     if re.match('^Fund', item):
-                        field.add_subfield('f', 'PNCA ' + item)
+                        field.add_subfield('w', 'PNCA ' + item)
 
     def __add_location(self, record, oclc_number):
         """
@@ -310,47 +324,69 @@ class UpdatePolicy:
         if self.is_online(record):
             return
 
-        location_mapper = LocationMapper()
-        # This is a hack for locations that can't be determined by
-        # using the PNCA call number.
         fields = record.get_fields('852')
         for field in fields:
             location_fields = field.get_subfields('b')
-            # Logically, this should be a single subfield.
+            # This should be a single subfield.
             # Seems important enough to throw an exception.
-            # If we hit a bump, instead print to console
-            # to see if there are multiple errors.
+            # If we hit a bump, print to console
+            # to check for multiple errors in the set.
             if len(location_fields) > 1:
                 raise Exception("Multiple location subfields in " + record.title())
-            for location_field in location_fields:
-                if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
-                    try:
-                        location = location_mapper.get_location(location_field)
-                        self.__replace_location(record, location)
-                    except Exception as err:
-                        print('error replacing location field.')
-                        print(err)
-
-            else:
-                call_numbers = field.get_subfields('h')
-                # Logically, this should be a single subfield.
-                # This seems important enough to throw an exception.
-                if len(call_numbers) > 1:
-                    raise Exception("Multiple call number subfields in " + record.title())
-                for call_number in call_numbers:
-                    if not call_number:
-                        if oclc_number:
-                            print('Missing call number for: ' + oclc_number)
-                        else:
-                            print('Missing call number for: ' + record.title())
-                    else:
+            # If 852 field contains a location field, we use it to set the
+            # location subfield in some cases. More commonly, we use the
+            # call number prefix to determine the location code.
+            if len(location_fields) > 0:
+                for location_field in location_fields:
+                    if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
                         try:
-                            location = location_mapper.get_location_by_callnumber(call_number)
-                            if location:
-                                self.__replace_location(record, location)
+                            location = self.location_mapper.get_location(location_field)
+                            self.__replace_location(field, location)
                         except Exception as err:
-                            print('error adding location field.')
+                            print('error replacing location field.')
                             print(err)
+
+                    else:
+                        self.__set_location_using_call_number(record, field, oclc_number)
+            else:
+                # This handles cases when no location subfield was found.
+                self.__set_location_using_call_number(record, field, oclc_number)
+
+    def __set_location_using_call_number(self, record, field, oclc_number):
+        call_numbers = field.get_subfields('h')
+        # Logically, this must be a single subfield.
+        # This seems important enough to throw an exception.
+        if len(call_numbers) > 1:
+            raise Exception("Multiple call number subfields in " + record.title())
+        for call_number in call_numbers:
+            if not call_number:
+                if oclc_number:
+                    print('Missing call number for: ' + oclc_number)
+                else:
+                    print('Missing call number for: ' + record.title())
+            else:
+                try:
+                    location = self.location_mapper.get_location_by_callnumber(call_number)
+                    if location:
+                        self.__replace_location(field, location)
+                except Exception as err:
+                    print('error adding location field.')
+                    print(err)
+
+    @staticmethod
+    def __replace_location(field, location):
+        """
+        Replaces the current value of 852(b)
+        :param field: pymarc field
+        :param location: location
+        :return:
+        """
+        try:
+            field.delete_subfield('b')
+            field.add_subfield('b', location, 1)
+        except Exception as err:
+            print('Error replacing location in record.')
+            print(err)
 
     @staticmethod
     def __modify_call_number(field, call_number):
@@ -396,23 +432,6 @@ class UpdatePolicy:
                     # for logging.
                     call_number = subfields[0]
         return call_number
-
-    @staticmethod
-    def __replace_location(record, location):
-        """
-        Replaces the current value of 852(b)
-        :param record: pymarc record
-        :param location: location
-        :return:
-        """
-        fields = record.get_fields('852')
-        try:
-            for field in fields:
-                field.delete_subfield('b')
-                field.add_subfield('b', location, 1)
-        except Exception as err:
-            print('Error replacing location in record.')
-            print(err)
 
     @staticmethod
     def __add_location_to_record(record, location):
