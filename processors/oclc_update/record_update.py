@@ -28,10 +28,24 @@ class RecordUpdater:
     updated_003_count = 0
     updated_leader_count = 0
     processed_records_count = 0
+    modified_count = 0
+    unmodified_count = 0
+    bad_record_count = 0
+    fuzzy_record_count = 0
 
     update_policy = None
     is_online = False
     replacement_strategy = None
+    bad_oclc_reponse_writer = None
+    original_fuzzy_writer = None
+    check_001_match_accuracy = False
+    title_check = False
+    require_perfect_match = False
+    fuzzy_match_ratio = 50
+
+
+    conn = None
+    cursor = None
 
     oclc_api_error_log = open('output/audit/oclc_api_error_log.txt', 'w')
 
@@ -95,8 +109,7 @@ class RecordUpdater:
                                  fuzzy_match_ratio=50,
                                  replacement_strategy='replace_and_add') -> None:
         """
-        Updates the input marc file records with data retrieved
-        from OCLC worldcat.
+        Initializes the processing properties, reads the input file, and reports results.
         :param file The marc file (binary)
         :param plugin The module to use when modifying records
         :param require_perfect_match If True a perfect title match with OCLC is required
@@ -112,11 +125,9 @@ class RecordUpdater:
         """
 
         self.replacement_strategy = replacement_strategy
-
-        modified_count = 0
-        unmodified_count = 0
-        bad_record_count = 0
-        fuzzy_record_count = 0
+        self.title_check = title_check
+        self.fuzzy_match_ratio = fuzzy_match_ratio
+        self.require_perfect_match = require_perfect_match
 
         if plugin:
             klass = getattr(import_module(plugin), 'UpdatePolicy')
@@ -136,12 +147,12 @@ class RecordUpdater:
             open('output/audit/missing-245a-pretty-' + str(dt) + '.txt', 'w'))
 
         if not use_database:
-            bad_oclc_reponse_writer = open('output/xml/bad-oclc-response-' + str(dt) + '.xml', 'w')
+            self.bad_oclc_reponse_writer = open('output/xml/bad-oclc-response-' + str(dt) + '.xml', 'w')
         else:
-            bad_oclc_reponse_writer = None
+            self.bad_oclc_reponse_writer = None
 
         if require_perfect_match:
-            original_fuzzy_writer = TextWriter(
+            self.original_fuzzy_writer = TextWriter(
                 open('output/updated-records/fuzzy-original-records-pretty-' + str(dt) + '.txt', 'w'))
 
         if self.oclc_xml_writer is not None:
@@ -150,23 +161,18 @@ class RecordUpdater:
                                   'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                                   'xsi:schemaLocation="http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">')
 
-        conn = None
-        cursor = None
-
         if use_database or add_to_database:
             if not self.database_name:
                 raise Exception("You need to provide the database name.")
             else:
-                # If database provided, initialize the connection and set cursor.
-                db_connect = DatabaseConnector()
-                conn = db_connect.get_connection(self.database_name, self.password)
-                print("Database opened successfully.")
-                cursor = conn.cursor()
+                # If the cursor property is defined requests for
+                # OCLC data will use the database instead of the API.
+                self.__set_db_connection()
 
         # If adding records to database we need purge any existing records.
         if add_to_database:
-            cursor.execute('DELETE FROM oclc')
-            conn.commit()
+            self.cursor.execute('DELETE FROM oclc')
+            self.conn.commit()
 
         wrapper = MarcReader()
         if encoding:
@@ -177,23 +183,20 @@ class RecordUpdater:
 
         for record in reader:
             if record:
-                field_001 = None
-                field_035 = None
-                input_oclc_number = None
-                oclc_001_value = None
-                oclc_response = None
-                self.is_online = False
-                test_001 = False
-                title = ''
 
                 self.processed_records_count += 1
 
+                field_001 = None
+                field_035 = None
+                oclc_api_search_id = None
+                oclc_001_value = None
+                oclc_response = None
+                self.is_online = False
+
                 try:
                     if not record.title():
-                        print('Record missing 245(a)')
+                        print('Record is missing title information')
                         missing_required_field_writer.write(record)
-                    if record['245'] and record['245']['a']:
-                        title = utils.get_original_title(record)
                     if len(record.get_fields('001')) == 1:
                         field_001 = utils.get_oclc_001_value(record['001'], record['003'])
                     if len(record.get_fields('035')) > 0:
@@ -210,11 +213,11 @@ class RecordUpdater:
                 # that we exclude a valid OCLC match because it's
                 # match score doesn't meet the do_fuzzy_001_test.
                 if field_035:
-                    input_oclc_number = field_035
+                    oclc_api_search_id = field_035
                 elif field_001:
                     if do_fuzzy_001_test:
-                        test_001 = True
-                    input_oclc_number = field_001
+                        self.check_001_match_accuracy = True
+                    oclc_api_search_id = field_001
 
                 if self.update_policy:
                     # Note that the online records are only processed separately
@@ -224,168 +227,20 @@ class RecordUpdater:
                     self.is_online = self.update_policy.is_online(record)
 
                 try:
-                    # If OCLC number was found, retrieve data from
-                    # the Worldcat API or the local database.
-                    if input_oclc_number:
-                        oclc_response = self.__get_oclc_response(input_oclc_number, cursor, add_to_database)
+                    # If an OCLC number was found, retrieve data from
+                    # the Worldcat API or from the local database.
+                    if oclc_api_search_id:
+                        oclc_response = self.__get_oclc_response(oclc_api_search_id, add_to_database)
 
+                    # Process with the matching OCLC record.
                     if oclc_response is not None:
+                        self.__process_oclc_match(record, oclc_response, oclc_api_search_id, add_to_database)
 
-                        oclc_001_value = self.__get_field_text('001', oclc_response)
-
-                        # Log if the OCLC response does not include 001. This happens
-                        # when the API returns an error message. Service unavailable
-                        # errors are rare since up to 3 API requests are made. The most common
-                        # error is file not found.
-                        if input_oclc_number and not oclc_001_value:
-                            print('Missing oclc 001 for ' + input_oclc_number)
-                            if bad_oclc_reponse_writer:
-                                bad_oclc_reponse_writer.write(ET.tostring(oclc_response,
-                                                                          encoding='utf8',
-                                                                          method='xml'))
-                        # Add record to database if requested.
-                        if input_oclc_number and add_to_database:
-                            self.__database_insert(cursor,
-                                                   conn,
-                                                   input_oclc_number,
-                                                   oclc_001_value,
-                                                   oclc_response, title)
-
-                        # Write to the OCLC record to file if file handle was provided.
-                        if self.oclc_xml_writer is not None:
-                            self.oclc_xml_writer.write(str(ET.tostring(oclc_response,
-                                                                  encoding='utf8',
-                                                                  method='xml')))
-
-                        # Modify records if input title matches that of the OCLC response.
-                        #
-                        # If "require_perfect_match" is True, an exact match
-                        # on the 245(a)(b) fields is required. Exact matches are written to the
-                        # updated records file. Imperfect (fuzzy) matches are written to a
-                        # separate file and labeled in the 962 for later review.
-                        #
-                        # If the "require_perfect_match" is False, field substitution
-                        # will take place when the match ratio is greater than the default
-                        # fuzzy_match_ratio. Records will be written to the updated records
-                        # output file.
-                        #
-                        # Verification fails when the oclc_response is None. The record
-                        # will be written to unmodified records file.
-
-                        # If not checking titles, just process the record and continue.
-                        if not title_check:
-                            self.process_oclc_match(record, oclc_response, oclc_001_value)
-                            self.__material_type_analysis(record, 'updated')
-                            continue
-
-                        # Get the titles array from the OCLC response.  The first array
-                        # element is the full title to use when logging. The
-                        # second element is the title to use in fuzzy comparisons.
-                        # It is derived from 245 subfield a and b.
-                        title_for_comparison = utils.get_oclc_title(oclc_response)
-                        match_ratio = utils.get_match_ratio(title_for_comparison[1], title)
-
-                        # set label for 962 note.
-                        if match_ratio >= fuzzy_match_ratio:
-                            fuzzy_match_label = 'fuzzy-match-passed'
-                        else:
-                            fuzzy_match_label = 'fuzzy-match-failed'
-
-                        if match_ratio == 100:
-
-                            self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
-                                                             None, 'updated_with_perfect_match')
-                            self.__write_record(record)
-
-                            modified_count += 1
-
-                        # When "require_perfect_match" is True make substitutions for records
-                        # with an imperfect OCLC title match. These records will be written to a
-                        # separate file for fuzzy matches. The pass/fail status will be
-                        # labeled in the 962 field. Recommended if you want to review files
-                        # with imperfect OCLC title matches.
-                        elif require_perfect_match:
-
-                            # Write the original version of the record to a separate output
-                            # file so the original is available to the reviewer.
-                            original_fuzzy_writer.write(record)
-
-                            # If the do_fuzzy_001_test parameter is True, compensate for
-                            # invalid OCLC numbers in the 003/001 field combination.
-                            if test_001:
-                                # When the match_ratio for this record is less than the test_ratio,
-                                # the record is not updated with OCLC data and instead is written to the
-                                # unmodified file.
-                                #
-                                # To determine the best test_ratio, value, analyze the title-fuzzy-match
-                                # audit file. If the matches look good overall, then skip this step
-                                # entirely (by setting do_fuzzy_001_test to be False). If
-                                # there are many bad record overlays, use the fuzzy audit file
-                                # to determine the optimal value for the test_ratio.
-                                #
-                                # This was added for a specific marc record set with
-                                # 001/003 combinations that produced many invalid matches.
-
-                                # Set the test ratio.
-                                test_ratio = 50
-
-                                # If the 001 does not have an OCLC prefix and match
-                                # ratio is too low, skip field replacement and write to
-                                # the unmodified file.
-                                if not utils.is_oclc_prefix(record['001']) and not match_ratio >= test_ratio:
-                                    # The test failed, do not modify the record.
-                                    self.__write_unmodifed_record(record, oclc_001_value)
-                                    unmodified_count += 1
-                                else:
-                                    utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
-                                                          match_ratio, fuzzy_match_ratio, oclc_001_value,
-                                                          self.title_log_writer)
-                                    self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
-                                                                     fuzzy_match_label, 'updated_with_fuzzy_match')
-                                    self.__write_fuzzy_record(record)
-                                    fuzzy_record_count += 1
-                                    modified_count += 1
-
-                            # If not analyzing 001/003 combinations, process fuzzy matches normally and write
-                            # to the separate fuzzy output file.
-                            else:
-                                utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
-                                                      match_ratio, fuzzy_match_ratio,
-                                                      oclc_001_value, self.title_log_writer)
-                                self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
-                                                                 fuzzy_match_label, 'updated_with_fuzzy_match')
-                                self.__write_fuzzy_record(record)
-                                fuzzy_record_count += 1
-                                modified_count += 1
-                        else:
-                            # If a perfect match is not required, update records that
-                            # have a ratio greater than the required fuzzy_match_ratio
-                            # and write to the updated file. Log the record's fuzzy status.
-                            # If fuzzy match fails to meet the minimum, do not update the record
-                            # and write to the unmodified file.
-                            #
-                            # You may want to do this when you are confident that OCLC record matches
-                            # are accurate and you don't want to bother with a separate fuzzy file for
-                            # titles that do not match perfectly. Doing this may result in more unmodified
-                            # records.
-                            if match_ratio >= fuzzy_match_ratio:
-                                utils.log_fuzzy_match(title, title_for_comparison[1], title_for_comparison[0],
-                                                      match_ratio, fuzzy_match_ratio,
-                                                      oclc_001_value, self.title_log_writer)
-                                self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
-                                                                 fuzzy_match_label, 'updated_with_fuzzy_match')
-                                self.__write_fuzzy_record(record)
-                                fuzzy_record_count += 1
-                                modified_count += 1
-                            else:
-                                self.__write_unmodifed_record(record, oclc_001_value)
-                                unmodified_count += 1
-
-                    # Records with no OCLC response can be modified as-is and written to the
+                    # Records with no OCLC match can be modified as-is and written to the
                     # unmodified records file.
                     else:
                         self.__write_unmodifed_record(record, oclc_001_value)
-                        unmodified_count += 1
+                        self.unmodified_count += 1
 
                 except HTTPError as err:
                     print(err)
@@ -393,7 +248,7 @@ class RecordUpdater:
                     print(err)
 
             else:
-                bad_record_count += 1
+                self.bad_record_count += 1
                 print(reader.current_exception)
                 print(reader.current_chunk)
                 self.bad_writer.write(reader.current_chunk)
@@ -403,16 +258,16 @@ class RecordUpdater:
         if self.oclc_xml_writer is not None:
             self.oclc_xml_writer.write('</collection>')
 
-        if conn is not None:
-            conn.close()
+        if self.conn is not None:
+            self.conn.close()
 
         print('Total processed records count: ' + str(self.processed_records_count))
         print('Total records should equal the modified count plus the unmodified count.')
         print()
-        print('Total modified records count: ' + str(modified_count))
-        print('Unmodified records count: ' + str(unmodified_count))
-        print('Records modified using an imperfect fuzzy match: ' + str(fuzzy_record_count))
-        print('Bad record count: ' + str(bad_record_count))
+        print('Total modified records count: ' + str(self.modified_count))
+        print('Unmodified records count: ' + str(self.unmodified_count))
+        print('Records modified using an imperfect fuzzy match: ' + str(self.fuzzy_record_count))
+        print('Bad record count: ' + str(self.bad_record_count))
         print()
 
         field_count_dict = field_count.get_field_count()
@@ -432,9 +287,164 @@ class RecordUpdater:
         if self.update_policy:
             self.update_policy.print_online_record_counts()
 
+    def __process_oclc_match(self, record, oclc_response, oclc_search_id, add_to_database):
+        """
+        Primary method for updating a single record with OCLC data.
+        Does record processing based on class properties. Reports
+        the result to console.
+        :param record: pymarc record to be modifed
+        :param oclc_response: OCLC API response
+        :param oclc_search_id: the ID used in the API request
+        :param add_to_database: boolean indicating when API results should be added to database
+        :return:
+        """
+        oclc_001_value = self.__get_field_text('001', oclc_response)
+
+        # Log if the OCLC response does not include 001. This happens
+        # when the API returns an error message. Service unavailable
+        # errors are rare since up to 3 API requests are made. The most common
+        # error is file not found.
+        if oclc_search_id and not oclc_001_value:
+            print('Missing oclc 001 for ' + oclc_search_id)
+            if self.bad_oclc_reponse_writer:
+                self.bad_oclc_reponse_writer.write(ET.tostring(oclc_response,
+                                                          encoding='utf8',
+                                                          method='xml'))
+        # Add record to database if requested.
+        if oclc_search_id and add_to_database:
+            self.__database_insert(oclc_search_id,
+                                   oclc_001_value,
+                                   oclc_response,
+                                   record.title())
+
+        # Write to the OCLC record to file if file handle was provided.
+        if self.oclc_xml_writer is not None:
+            self.oclc_xml_writer.write(str(ET.tostring(oclc_response,
+                                                       encoding='utf8',
+                                                       method='xml')))
+
+        # Modify records if input title matches that of the OCLC response.
+        #
+        # If "require_perfect_match" is True, an exact match
+        # on the 245(a)(b) fields is required. Exact matches are written to the
+        # updated records file. Imperfect (fuzzy) matches are written to a
+        # separate file and labeled in the 962 for later review.
+        #
+        # If the "require_perfect_match" is False, field substitution
+        # will take place when the match ratio is greater than the default
+        # fuzzy_match_ratio. Records will be written to the updated records
+        # output file.
+        #
+        # Verification fails when the oclc_response is None. The record
+        # will be written to unmodified records file.
+
+        # If not checking titles, just process the record and return.
+        if not self.title_check:
+            self.__update_record_with_oclc(record, oclc_response, oclc_001_value)
+            self.__material_type_analysis(record, 'updated')
+            return
+
+        # Get the titles array from the OCLC response.  The first array
+        # element is the full title to use when logging. The
+        # second element is the title to use in fuzzy comparisons.
+        # It is derived from 245 subfield a and b.
+        title_for_comparison = utils.get_oclc_title(oclc_response)
+        match_ratio = utils.get_match_ratio(title_for_comparison[1], record.title())
+
+        # set label for 962 note.
+        if match_ratio >= self.fuzzy_match_ratio:
+            fuzzy_match_label = 'fuzzy-match-passed'
+        else:
+            fuzzy_match_label = 'fuzzy-match-failed'
+
+        if match_ratio == 100:
+
+            self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                             None, 'updated_with_perfect_match')
+            self.__write_record(record)
+
+            self.modified_count += 1
+
+        # When "require_perfect_match" is True make substitutions for records
+        # with an imperfect OCLC title match. These records will be written to a
+        # separate file for fuzzy matches. The pass/fail status will be
+        # labeled in the 962 field. Recommended if you want to review files
+        # with imperfect OCLC title matches.
+        elif self.require_perfect_match:
+            # Write the original version of the record to a separate output
+            # file so the original is available to the reviewer.
+            self.original_fuzzy_writer.write(record)
+            # If the do_fuzzy_001_test parameter is True, compensate for
+            # invalid OCLC numbers in the 003/001 field combination.
+            if self.check_001_match_accuracy:
+                # When the match_ratio for this record is less than the fuzzy match ratio,
+                # the record is not updated with OCLC data and instead is written to the
+                # unmodified file.
+                #
+                # To determine the best test_ratio, value, analyze the title-fuzzy-match
+                # audit file. If the matches look good overall, then skip this step
+                # entirely (by setting do_fuzzy_001_test to be False). If
+                # there are many bad record overlays, use the fuzzy audit file
+                # to determine the optimal value for the test_ratio.
+                #
+                # This was added for a specific marc record set with
+                # 001/003 combinations that produced many invalid matches.
+
+                # If the 001 does not have an OCLC prefix and match
+                # ratio is too low, skip field replacement and write to
+                # the unmodified file.
+                if not utils.is_oclc_prefix(record['001']) and not match_ratio >= self.fuzzy_match_ratio:
+                    # The test failed, do not modify the record.
+                    self.__write_unmodifed_record(record, oclc_001_value)
+                    self.unmodified_count += 1
+                else:
+                    utils.log_fuzzy_match(record.title(), title_for_comparison[1], title_for_comparison[0],
+                                          match_ratio, self.fuzzy_match_ratio, oclc_001_value,
+                                          self.title_log_writer)
+                    self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                                     fuzzy_match_label, 'updated_with_fuzzy_match')
+                    self.__write_fuzzy_record(record)
+                    self.fuzzy_record_count += 1
+                    self.modified_count += 1
+
+            # If not analyzing 001/003 combinations, process fuzzy matches normally and write
+            # to the separate fuzzy output file.
+            else:
+                utils.log_fuzzy_match(record.title(), title_for_comparison[1], title_for_comparison[0],
+                                      match_ratio, self.fuzzy_match_ratio,
+                                      oclc_001_value, self.title_log_writer)
+                self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                                 fuzzy_match_label, 'updated_with_fuzzy_match')
+                self.__write_fuzzy_record(record)
+                self.fuzzy_record_count += 1
+                self.modified_count += 1
+        else:
+            # If a perfect match is not required, update records that
+            # have a ratio greater than the required fuzzy_match_ratio
+            # and write to the updated file. Log the record's fuzzy status.
+            # If fuzzy match fails to meet the minimum, do not update the record
+            # and write to the unmodified file.
+            #
+            # You may want to do this when you are confident that OCLC record matches
+            # are accurate and you don't want to bother with a separate fuzzy file for
+            # titles that do not match perfectly. Doing this may result in more unmodified
+            # records.
+            if match_ratio >= self.fuzzy_match_ratio:
+                utils.log_fuzzy_match(record.title(), title_for_comparison[1], title_for_comparison[0],
+                                      match_ratio, self.fuzzy_match_ratio,
+                                      oclc_001_value, self.title_log_writer)
+                self.__process_oclc_replacements(record, oclc_response, oclc_001_value,
+                                                 fuzzy_match_label, 'updated_with_fuzzy_match')
+                self.__write_fuzzy_record(record)
+                self.fuzzy_record_count += 1
+                self.modified_count += 1
+            else:
+                self.__write_unmodifed_record(record, oclc_001_value)
+                self.unmodified_count += 1
+
     def __process_oclc_replacements(self, record, oclc_response, value001, fuzzy_match_label, update_label):
         """
-        Process records modified with OCLC data.
+        Calls the record update and audit methods.
         :param record: pymarc record
         :param oclc_response: OCLC API response
         :param value001: 001 value from OCLC response
@@ -442,8 +452,29 @@ class RecordUpdater:
         :param update_label: label for location analysis log
         :return:
         """
-        self.process_oclc_match(record, oclc_response, value001, fuzzy_match_label)
+        self.__update_record_with_oclc(record, oclc_response, value001, fuzzy_match_label)
         self.__material_type_analysis(record, update_label)
+
+    def __update_record_with_oclc(self, record, oclc_response, field_001, status=None):
+        """
+        Updates record using the OCLC response and applies local
+        update policy if a plugin was provided.
+        :param record: pymarc record
+        :param oclc_response: oclc xml response
+        :param field_001: oclc 001 field value
+        :param status: Indicates status if fuzzy match
+        :return:
+        """
+        # replace fields
+        self.replace_fields(field_001, record, oclc_response)
+        # add fuzzy match status label
+        if status is not None:
+            field_generator = DataFieldGenerator()
+            field = field_generator.create_data_field('962', [0, 0], 'a', status)
+            record.add_ordered_field(field)
+        # execute plugin policy after OCLC updates
+        if self.update_policy:
+            self.update_policy.execute(record, field_001)
 
     def __write_unmodifed_record(self, record, value001):
         """
@@ -468,6 +499,17 @@ class RecordUpdater:
         else:
             self.unmodified_writer.write(record)
 
+    def __set_db_connection(self):
+        """
+        Sets the database connection and cursor properties.
+        :return:
+        """
+        # If database provided, initialize the connection and set cursor.
+        db_connect = DatabaseConnector()
+        self.conn = db_connect.get_connection(self.database_name, self.password)
+        print("Database opened successfully.")
+        self.cursor = self.conn.cursor()
+
     def __write_fuzzy_record(self, record):
         """
         Write record to fuzzy output file
@@ -490,18 +532,17 @@ class RecordUpdater:
         else:
             self.modified_writer.write(record)
 
-    def __get_oclc_response(self, oclc_number, cursor, database_insert):
+    def __get_oclc_response(self, oclc_number, database_insert):
         """
         Retrieves the OCLC record from API or database
         :param oclc_number: record number
-        :param cursor: database cursor
         :param database_insert: database insert task boolean
         :return: oclc response node
         """
         oclc_response = None
-        if cursor is not None and not database_insert:
-            cursor.execute("""SELECT oclc FROM oclc where id=%s""", [oclc_number])
-            row = cursor.fetchone()
+        if self.cursor is not None and not database_insert:
+            self.cursor.execute("""SELECT oclc FROM oclc where id=%s""", [oclc_number])
+            row = self.cursor.fetchone()
             if row:
                 oclc_response = ET.fromstring(row[0])
         else:
@@ -510,27 +551,6 @@ class RecordUpdater:
             oclc_response = self.__get_oclc_api_response(oclc_number)
 
         return oclc_response
-
-    def process_oclc_match(self, record, oclc_response, field_001, status=None):
-        """
-        Updates record using the OCLC response and applies local
-        update policy if a plugin was provided.
-        :param record: pymarc record
-        :param oclc_response: oclc xml response
-        :param field_001: oclc 001 field value
-        :param status: Indicates status if fuzzy match
-        :return:
-        """
-        # replace fields
-        self.replace_fields(field_001, record, oclc_response)
-        # add fuzzy match status label
-        if status is not None:
-            field_generator = DataFieldGenerator()
-            field = field_generator.create_data_field('962', [0, 0], 'a', status)
-            record.add_ordered_field(field)
-        # apply plugin policy
-        if self.update_policy:
-            self.update_policy.execute(record, field_001)
 
     def __material_type_analysis(self, record, output_file):
         """
