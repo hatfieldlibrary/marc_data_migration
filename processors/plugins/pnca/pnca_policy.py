@@ -26,38 +26,14 @@ class UpdatePolicy:
 
     ns = {'': 'http://www.loc.gov/MARC21/slim'}
 
-    # These fields will get the $9local subfield that preserves
+    # These fields get the $9local subfield that preserves
     # the field when importing to Alma.
     local_fields = ['590',
                     '591',
                     '592',
                     '690',
                     '852',
-                    '900',
-                    '901',
-                    '902',
-                    '909',
-                    '910',
-                    '913',
-                    '917',
-                    '918',
-                    '921',
-                    '936',
-                    '938',
-                    '940',
-                    '945',
-                    '962',
-                    '966',
-                    '970',
-                    '971',
-                    '975',
-                    '987',
-                    '989',
-                    '991',
-                    '994',
-                    '995',
-                    '998',
-                    '999']
+                    '900']
 
     def execute(self, record, identifier):
         """
@@ -72,16 +48,20 @@ class UpdatePolicy:
         self.__fix_duplicate_100_field(record)
         self.__add_local_field_note(record)
         self.__remove_035(record)
+        self.__remove_9xx_fields(record)
 
 
     @staticmethod
     def conditional_move_tags():
         """
         Implement this method if you need to preserve information by moving
-        it to a local field when the field was not replaced by data from
+        it to a local field if the field was not replaced by data from
         the OCLC response. Called by the OCLC field replacement task.
         :return: An array of string arrays that indicate the original tag and
         the new local target field.
+
+        For PNCA, we want to preserve information in 500 and 505 by moving
+        to local fields 590 and 591.
         """
         # return []
         field1 = ['500', '591']
@@ -90,9 +70,9 @@ class UpdatePolicy:
 
     def is_online(self, record):
         """
-        The hook for electronic records in our current
-        input data is the 900 field. Called by OCLC replacement
-        and modify record tasks.
+        Identifies records that describe an electronic resource.
+        For PNCA, we use the 900 field to identify electronic
+        resources.
         :param record: a pymarc record
         :return: True if record is electronic
         """
@@ -137,7 +117,7 @@ class UpdatePolicy:
 
     def print_online_record_counts(self):
         """
-        Displays the counts of electronic record types. This can
+        For console output. Displays the counts of electronic record types. This can
         be called by other tasks to report on the types of records
         identified by is_online().
         :return:
@@ -150,7 +130,10 @@ class UpdatePolicy:
 
     def analyze_type(self, record, type):
         """
-        Adding this method to PNCA plugin so we can check material types.
+        Creates an audit file. The method compares the call number
+        with location information in the 300 field. Use this method
+        to flag possible inconsistencies so they can be reviewed and
+        fixed before the records are loaded.
         :param record: pymarc record
         :param type: indicates oclc modification status
         :return:
@@ -191,11 +174,9 @@ class UpdatePolicy:
     def set_local_id(self, record):
         """
         PNCA 001 and 003 control fields include a lot of
-        duplicates. These need to be replaced to the extent possible.
-        This function replaces the 003 with a PNCA label and assigns a unique,
-        incremented value to 001 whenever conditions are met. It only
-        makes sense to call this method for unmodified records that lack
-        an OCLC number, or when the apparent OCoLC number is invalid.
+        duplicates. These need to be replaced.
+        This method replaces the 003 with a 'PNCA' label and assigns a unique,
+        incremented value to 001 when conditions are met.
         :param record: pymarc record
         :return:
         """
@@ -210,7 +191,7 @@ class UpdatePolicy:
                 field003 = 'PNCA'
                 to_update = True
                 self.pnca_id_counter += 1
-            # replace if non-valid OCLC number
+            # replace if the 001 value is not valid
             if field003 == 'OCoLC':
                 if len(field001arr) > 0:
                     if utils.get_oclc_001_value(field001arr[0], field003arr[0]) is None:
@@ -242,7 +223,8 @@ class UpdatePolicy:
     @staticmethod
     def __remove_035(record):
         """
-        This is an important cleanup step so it's defined in it's
+        Before Alma loading, we are removing all 035s in the record.
+        This is an important cleanup step so it's defined here in it's
         own function.
         :param record: pymarc record
         :return:
@@ -251,6 +233,14 @@ class UpdatePolicy:
 
     @staticmethod
     def __add_592(record, value001):
+        """
+        This add a local field for OCLC numbers that have been excluded
+        and removed from the record because we believe they are inaccurate.
+        Records can later be retrieved in Alma using this field and reviewed.
+        :param record: pymarc record
+        :param value001:
+        :return:
+        """
         target_field = Field(
             tag='592',
             indicators=["", ""],
@@ -260,6 +250,11 @@ class UpdatePolicy:
 
     @staticmethod
     def __get_subfield_300a(record):
+        """
+        Returns the 300$a value. Assumes a single 300 field.
+        :param record: pymarc record
+        :return:
+        """
         subfield_300a = None
         field_test = record.get_fields('300')
         if len(field_test) > 0:
@@ -284,7 +279,7 @@ class UpdatePolicy:
     @staticmethod
     def __add_inventory(record):
         """
-        Copy the inventory note to 852(i)
+        Copy the inventory note to 852$y
         :param record: pymarc record
         :return:
         """
@@ -301,7 +296,7 @@ class UpdatePolicy:
     @staticmethod
     def __add_funds(record):
         """
-        Copy the funds note to 852(f)
+        Copy the funds note to 852$w
         """
         fields = record.get_fields('852')
         for field in fields:
@@ -315,7 +310,7 @@ class UpdatePolicy:
 
     def __add_location(self, record, oclc_number):
         """
-        Add a location based on call number or 852(b)
+        Add a location based on call number or 852$b
         :param record:
         :param oclc_number:
         :return:
@@ -341,7 +336,7 @@ class UpdatePolicy:
                     if location_field == '1st Floor CDs' or location_field == 'OVERSIZE PERIODICALS':
                         try:
                             location = self.location_mapper.get_location(location_field)
-                            self.__replace_location(field, location)
+                            self.__replace_location_subfield(field, location)
                         except Exception as err:
                             print('error replacing location field.')
                             print(err)
@@ -353,6 +348,13 @@ class UpdatePolicy:
                 self.__set_location_using_call_number(record, field, oclc_number)
 
     def __set_location_using_call_number(self, record, field, oclc_number):
+        """
+        Adds a location field to the 852 based on the call number prefix.
+        :param record: pymarc record
+        :param field: pymarc field
+        :param oclc_number:
+        :return:
+        """
         call_numbers = field.get_subfields('h')
         # Logically, this must be a single subfield.
         # This seems important enough to throw an exception.
@@ -368,15 +370,16 @@ class UpdatePolicy:
                 try:
                     location = self.location_mapper.get_location_by_callnumber(call_number)
                     if location:
-                        self.__replace_location(field, location)
+                        self.__replace_location_subfield(field, location)
                 except Exception as err:
                     print('error adding location field.')
                     print(err)
 
     @staticmethod
-    def __replace_location(field, location):
+    def __replace_location_subfield(field, location):
         """
-        Replaces the current value of 852(b)
+        Sets the current value of 852$b after removing the
+        subfield if it already exists in the field.
         :param field: pymarc field
         :param location: location
         :return:
@@ -392,12 +395,12 @@ class UpdatePolicy:
     def __modify_call_number(field, call_number):
         """
         This could be used to remove PNCA prefixes from
-        852$h. More criteria need to be added to avoid
-        updated non-LC call numbers that require the prefix.
+        852$h. Add more logic to avoid non-LC call numbers that
+        require the prefix.
 
-        NOTE: We decided NOT to do this. We need the prefixes
+        IMPORTANT: We decided NOT to do this because we need the prefixes
         to split records into sets for loading.  (Prefixes
-        for LC records can be removed before the sets are
+        on LC records can be removed before the sets are
         loaded into Alma, or using Alma normalization afterwards.)
 
         :param field:
@@ -416,8 +419,8 @@ class UpdatePolicy:
     @staticmethod
     def __get_call_number_for_logging(record):
         """
-        Returns call number found in 852(h).
-        Convenience method for location analysis loggin.
+        Returns call number found in 852$h.
+        Convenience method for location analysis logging.
         :param record: record node
         :return: call number
         """
@@ -436,11 +439,11 @@ class UpdatePolicy:
     @staticmethod
     def __add_location_to_record(record, location):
         """
-        Adds 852(b) to the record.
+        Adds 852$b to the record.
 
         NOT USED. It turns out that this
         is dangerous since a few PNCA records already have
-        an 852(b). Leaving it in the record will trip up
+        an 852$b. Leaving it in the record will trip up
         the Alma import. Use __replace_location().
         :param record: pymarc record
         :param location: location code
@@ -454,3 +457,20 @@ class UpdatePolicy:
             print('Error adding location to record.')
             print(err)
 
+    @staticmethod
+    def __remove_9xx_fields(record):
+        """
+        Most 9xx fields in PNCA records are irrelevant
+        and should be removed. Also removes 900 fields
+        that don't have a subfield a.
+        :param record: pymarc record
+        :return:
+        """
+        record.remove_fields('902', '909', '910', '913', '917', '918', '921', '930', '936', '938', '940',
+                             '970', '971', '987', '989', '991', '994', '995', '998', '999')
+        list_900_fields = record.get_fields('900')
+        for field in list_900_fields:
+            subs = field.get_subfields('a')
+            if len(subs) == 0:
+                # field is empty so remove it
+                record.remove_field(field)
