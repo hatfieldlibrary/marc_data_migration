@@ -49,7 +49,7 @@ class LocationMapper:
         'asc': 'pasc',
         'resperm': 'presperm',
         'circ': 'pcirc',
-        '1st Floor CDs': 'pcds', # use call number instead
+        '1st Floor CDs': 'pcds', # use call number instead?
         'OVERSIZE PERIODICALS': 'pmezzover'
     }
 
