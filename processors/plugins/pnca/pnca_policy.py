@@ -492,4 +492,4 @@ class UpdatePolicy:
                 arr = s.split('|')
                 for item in arr:
                     if re.match('^Policy:LIB', item):
-                        field.add_subfield('o', 'pnocirc ' + item)
+                        field.add_subfield('o', 'pnocirc')
