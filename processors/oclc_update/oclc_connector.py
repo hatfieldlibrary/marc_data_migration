@@ -19,17 +19,19 @@ class OclcConnector:
         control_character_replacement = re.compile('\s+\d+$')
         lookup = re.sub(control_character_replacement, '', lookup)
         path = 'http://www.worldcat.org/webservices/catalog/content/' + lookup + '?wskey=' + oclc_developer_key
-        # print(path)
-        with urllib.request.urlopen(path) as response:
-            xml_response = response.read().decode()
-            try:
+        print(path)
+        try:
+            with urllib.request.urlopen(path) as response:
+                xml_response = response.read().decode()
                 if not raw:
-                    return ET.fromstring(xml_response)
-                else:
-                    return xml_response
-            except:
-                print('Cannot parse marcxml response.')
-
+                    try:
+                        return ET.fromstring(xml_response)
+                    except:
+                        print('Cannot parse marcxml response.')
+                    else:
+                        return xml_response
+        except Exception as err:
+            print(err)
 
 
 

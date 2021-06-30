@@ -104,8 +104,6 @@ def __get_oclc_035_value(fields):
             if 'OCoLC' in field_035:
                 try:
                     oclc_number = field_035.replace('(OCoLC)', '')
-                    if "OCM" in oclc_number:
-                        print()
                     # Based on experience, going case insensitive for this field.
                     oclc_number = re.sub('(ocn|ocm|on)', '', oclc_number, flags=re.IGNORECASE)
                     match = valid_format_regex.match(oclc_number)

@@ -45,11 +45,11 @@ class UpdatePolicy:
         self.__add_location(record, identifier)
         self.__add_inventory(record)
         self.__add_funds(record)
+        self.__set_item_policy(record)
         self.__fix_duplicate_100_field(record)
         self.__add_local_field_note(record)
         self.__remove_035(record)
         self.__remove_9xx_fields(record)
-        self.__set_item_policy(record)
 
     @staticmethod
     def conditional_move_tags():
@@ -174,9 +174,12 @@ class UpdatePolicy:
     def set_local_id(self, record):
         """
         PNCA 001 and 003 control fields include a lot of
-        duplicates. These need to be replaced.
+        duplicates that need to be replaced in the file of records
+        that don't receive an OCLC update.
         This method replaces the 003 with a 'PNCA' label and assigns a unique,
-        incremented value to 001 when conditions are met.
+        incremented value to 001. It also checks records
+        with 003=OCoLC and adds a 592 local field if the OCLC number
+        looks valid and worth reviewing later.
         :param record: pymarc record
         :return:
         """
@@ -185,17 +188,10 @@ class UpdatePolicy:
         field001arr = record.get_fields('001')
         if len(field003arr) > 0:
             field003 = field003arr[0].value()
-            # always replace these
-            if field003 == 'COMPanion' or field003 == 'CStRLIN' or field003 == 'DSS'\
-                    or field003 == 'DLC' or field003 == '' or field003 == 'PNCA':
-                field003 = 'PNCA'
-                to_update = True
-                self.pnca_id_counter += 1
-            # replace if the 001 value is not valid
             if field003 == 'OCoLC':
                 if len(field001arr) > 0:
                     if utils.get_oclc_001_value(field001arr[0], field003arr[0]) is None:
-                        # No valid OCLC number found.
+                        # Not a valid OCLC number format. Just replace.
                         field003 = 'PNCA'
                         to_update = True
                         self.pnca_id_counter += 1
@@ -207,12 +203,18 @@ class UpdatePolicy:
                         field003 = 'PNCA'
                         to_update = True
                         self.pnca_id_counter += 1
+            else:
+                # Just replace the control fields for all other 003 values.
+                field003 = 'PNCA'
+                to_update = True
+                self.pnca_id_counter += 1
         else:
-            # add if record has no 003 field
+            # If the record has no 003 field, add one.
             field003 = 'PNCA'
             to_update = True
             self.pnca_id_counter += 1
         if to_update:
+            # Now update fields.
             record.remove_fields('001')
             record.remove_fields('003')
             new001 = Field(tag='001', data=str(self.pnca_id_counter))
@@ -291,7 +293,9 @@ class UpdatePolicy:
                 arr = s.split('|')
                 for item in arr:
                     if re.match('^Inventory', item):
-                        field.add_subfield('y', item)
+                        match = re.match('^Inventory:(\d{2,2})\/(\d{2,2})\/(\d{4,5})', item)
+                        field_value = "%s%s%s" %(match.group(3), match.group(1), match.group(2))
+                        field.add_subfield('x', field_value)
 
     @staticmethod
     def __add_funds(record):
@@ -492,4 +496,4 @@ class UpdatePolicy:
                 arr = s.split('|')
                 for item in arr:
                     if re.match('^Policy:LIB', item):
-                        field.add_subfield('o', 'pnocirc')
+                        field.add_subfield('q', 'PNOCIRC')

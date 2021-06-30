@@ -43,7 +43,7 @@ class CheckDuplicates:
                                 if len(subfields) > 1:
                                     print('duplicate 035a')
                                 elif len(subfields) == 1:
-                                    field_035 = utils.get_oclc_035_value(subfields[0])
+                                    field_035 = utils.get_035(subfields[0])
 
                     except Exception as err:
                         print('error reading fields from input record.')

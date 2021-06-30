@@ -139,8 +139,6 @@ class RecordUpdater:
 
         print('Using replacement strategy: ' + self.replacement_strategy)
 
-        self.field_audit_writer = self.field_audit_writer
-
         dt = datetime.datetime.now()
 
         missing_required_field_writer = TextWriter(
@@ -486,9 +484,13 @@ class RecordUpdater:
         :return:
         """
         if self.update_policy:
+
             for field_move in self.update_policy.conditional_move_tags():
                 if len(field_move) == 2:
-                    # There was no OCLC response, so this move is not conditional.
+                    # We are here because there is no OCLC data. Simply
+                    # move the fields to local fields. e.g. 500 to 591.
+                    # The field replacement mapping is provided by the
+                    # update policy plugin.
                     self.__move_field(record, field_move[0], field_move[1])
             self.update_policy.execute(record, value001)
             # Non-updated records should be passed to the plugin's method
@@ -641,7 +643,7 @@ class RecordUpdater:
     def __move_field(self, record, current_field_tag, new_field_tag):
         """
         Moves field to a new field in the record. Used
-        to preserve local fields during ingest.
+        to preserve local fields during Alma ingest.
         :param record: pymarc record
         :param current_field_tag: tag of the current field
         :param new_field_tag: tag of the target field
@@ -652,7 +654,7 @@ class RecordUpdater:
     def __conditional_move_field(self, record, replacement_field_tag, target_field_tag, oclc_response):
         """
         Conditionally moves field to a new field in the record. Used
-        to preserve 505 field during ingest when no replacement is
+        to preserve field during ingest when no replacement is
         provided by OCLC.
         :param record: pymarc record
         :param replacement_field_tag: tag of the field to move
@@ -736,9 +738,11 @@ class RecordUpdater:
 
             record.remove_fields(replacement_field)
             record.add_ordered_field(field)
+            # increment field count
+            field_count.update_field_count(replacement_field)
 
     @staticmethod
-    def __replace_oclc_001_003(record, oclc_number):
+    def __replace_with_oclc_001_003(record, oclc_number):
         """
         Add 001 and 003 fields to a record. Use to guarantee this
         information is in every record.
@@ -779,6 +783,7 @@ class RecordUpdater:
         :return: oclc response node
         """
         diagnostic = ''
+        # time.sleep(1.2)
         oclc_response = self.connector.get_oclc_response(field_value, self.oclc_developer_key)
         oclc_field = oclc_response.find('./*[@tag="001"]')
         # API returns occasional error. Second attempt
@@ -852,7 +857,7 @@ class RecordUpdater:
         if oclc_001_value:
             # Update 001 with the value returned in the OCLC API response. This
             # can differ from the original value in the input records.
-            self.__replace_oclc_001_003(record, oclc_001_value)
+            self.__replace_with_oclc_001_003(record, oclc_001_value)
             self.updated_001_count += 1
             self.updated_003_count += 1
         else:

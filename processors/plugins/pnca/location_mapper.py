@@ -69,7 +69,9 @@ class LocationMapper:
             print('Missing call number')
         lower_case = call_number.lower()
         try:
-            if re.match("^over\b", lower_case):
+            if re.match("^spec over", lower_case):
+                return 'overspec'
+            if re.match("^over", lower_case):
                 return 'over'
             if re.match("^periodical", lower_case):
                 return 'periodical'
@@ -79,8 +81,6 @@ class LocationMapper:
                 return 'games'
             if re.match("^archive", lower_case):
                 return 'archive'
-            if re.match("^spec over", lower_case):
-                return 'overspec'
             if re.match("^spec", lower_case):
                 return 'spec'
             if re.match("^dvd", lower_case):
@@ -91,9 +91,11 @@ class LocationMapper:
                 return 'new'
             if re.match("^asc", lower_case):
                 return 'asc'
+            if re.match("^video", lower_case):
+                return 'video'
             if re.match("^perm", lower_case):
                 return 'resperm'
-            if re.match("^circ", lower_case):
+            if re.match("^(circ|headphone|usb|thumb|tv remote|elevator|scissors)", lower_case):
                 return 'circ'
             if re.match(r"^(na|nb|nc|nd|ne|nk|nx)", lower_case):
                 call = re.match("^(na|nb|nc|nd|ne|nk|nx)", lower_case)
