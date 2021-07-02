@@ -471,7 +471,7 @@ class UpdatePolicy:
         :return:
         """
         record.remove_fields('902', '909', '910', '913', '917', '918', '921', '930', '936', '938', '940',
-                             '970', '971', '987', '989', '991', '994', '995', '998', '999')
+                             '962', '970', '971', '987', '989', '991', '994', '995', '998', '999')
         list_900_fields = record.get_fields('900')
         for field in list_900_fields:
             subs = field.get_subfields('a')
